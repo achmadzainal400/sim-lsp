@@ -17,12 +17,13 @@ self.addEventListener("push", function (event) {
   const title = String(data.title || "Laporan baru masuk").slice(0, 80);
   const body = String(data.body || "Ada laporan baru yang perlu diperiksa.").slice(0, 180);
   const target = inAppScope(data.url);
-  const icon = new URL("./icons/simlsp-192.png", self.registration.scope).href;
+  const icon = new URL("./icons/simlsp-notification.png", self.registration.scope).href;
+  const badge = new URL("./icons/simlsp-notification-badge.png", self.registration.scope).href;
 
   event.waitUntil(self.registration.showNotification(title, {
     body: body,
     icon: icon,
-    badge: icon,
+    badge: badge,
     tag: String(data.tag || "simlsp-laporan-baru"),
     renotify: true,
     data: { url: target.href }

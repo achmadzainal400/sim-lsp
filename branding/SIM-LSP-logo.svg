@@ -1,12 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="860" height="224" viewBox="0 0 860 224" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="860" height="224" viewBox="0 0 860 224" role="img" aria-labelledby="title">
   <title id="title">SIM-LSP Sarana Prasarana</title>
-  <desc id="desc">Logo Madrasah Darul Falah dengan motif fasad bangunan dan denah ruang.</desc>
-  <rect x="8" y="8" width="208" height="208" rx="42" fill="#102C3A"/>
-  <path d="M47 102 112 53l65 49" fill="none" stroke="#F3F6F1" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M63 100v79h98v-79" fill="none" stroke="#F3F6F1" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M76 120h23v26H76zm49 0h23v26h-23z" fill="#148B81" stroke="#F3F6F1" stroke-width="5"/>
-  <path d="M106 132h17v47h-17z" fill="#E4AC43"/>
-  <path d="M48 184h129" stroke="#E4AC43" stroke-width="8" stroke-linecap="round"/>
+  <image href="../icons/simlsp-512.png" x="8" y="8" width="208" height="208" />
   <text x="260" y="112" fill="#102C3A" font-family="Arial, Helvetica, sans-serif" font-size="74" font-weight="800" letter-spacing="-3">SIM-LSP</text>
   <text x="265" y="158" fill="#148B81" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="700">Sarana Prasarana</text>
   <text x="265" y="192" fill="#526A73" font-family="Arial, Helvetica, sans-serif" font-size="20">Madrasah Darul Falah</text>
