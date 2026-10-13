@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920" role="img" aria-labelledby="title desc">
+  <title id="title">Splash SIM-LSP</title>
+  <desc id="desc">Fasad Madrasah Darul Falah dan garis denah ruang untuk aplikasi Sarana Prasarana.</desc>
+  <rect width="1080" height="1920" fill="#102C3A"/>
+  <g fill="none" stroke="#1A4D55" stroke-width="4" opacity=".8">
+    <path d="M-30 495h165v90h80M-30 550h120v90h110"/>
+    <path d="M1110 495H945v90h-80M1110 550H990v90H870"/>
+    <path d="M-55 1420h218v-148h154v96h170v164h180v-110h205v159h270"/>
+    <path d="M-48 1475h166v-149h206v95h158v164h192v-108h203v160h267"/>
+    <path d="M-42 1530h112v-148h258v94h147v164h203v-106h202v160h270"/>
+  </g>
+  <g fill="#E4AC43">
+    <circle cx="135" cy="495" r="10"/><circle cx="215" cy="585" r="10"/><circle cx="945" cy="495" r="10"/>
+    <circle cx="163" cy="1420" r="10"/><circle cx="662" cy="1532" r="10"/><circle cx="1030" cy="1581" r="10"/>
+  </g>
+  <text x="540" y="228" text-anchor="middle" fill="#BDD2CF" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="600" letter-spacing="2">Madrasah Darul Falah</text>
+  <text x="540" y="363" text-anchor="middle" fill="#F3F6F1" font-family="Arial, Helvetica, sans-serif" font-size="78" font-weight="800" letter-spacing="-2">SIM-LSP</text>
+  <text x="540" y="422" text-anchor="middle" fill="#63C4AE" font-family="Arial, Helvetica, sans-serif" font-size="34" font-weight="600">Sarana Prasarana</text>
+  <g transform="translate(0 35)">
+    <path d="M260 870 540 652l280 218" fill="none" stroke="#F3F6F1" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M326 862v345h428V862" fill="none" stroke="#F3F6F1" stroke-width="25" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M367 952h103v100H367zm242 0h103v100H609z" fill="#148B81" stroke="#F3F6F1" stroke-width="16"/>
+    <path d="M490 1022h100v185H490z" fill="#E4AC43"/>
+    <circle cx="568" cy="1113" r="7" fill="#102C3A"/>
+    <path d="M258 1225h564" stroke="#E4AC43" stroke-width="18" stroke-linecap="round"/>
+  </g>
+  <g font-family="Arial, Helvetica, sans-serif" font-size="23" font-weight="600">
+    <rect x="174" y="1302" width="210" height="64" rx="9" fill="#17454E" stroke="#36726D" stroke-width="2"/>
+    <text x="279" y="1343" text-anchor="middle" fill="#DDEAE4">R 1.1</text>
+    <rect x="435" y="1302" width="210" height="64" rx="9" fill="#17454E" stroke="#36726D" stroke-width="2"/>
+    <text x="540" y="1343" text-anchor="middle" fill="#DDEAE4">LAB KOM</text>
+    <rect x="696" y="1302" width="210" height="64" rx="9" fill="#17454E" stroke="#36726D" stroke-width="2"/>
+    <text x="801" y="1343" text-anchor="middle" fill="#DDEAE4">PERPUS</text>
+  </g>
+  <path d="M330 1611h420" stroke="#2D6268" stroke-width="2"/>
+  <text x="540" y="1686" text-anchor="middle" fill="#F3F6F1" font-family="Arial, Helvetica, sans-serif" font-size="32" font-weight="700">Mengelola ruang dan aset madrasah</text>
+  <text x="540" y="1740" text-anchor="middle" fill="#A8C2C2" font-family="Arial, Helvetica, sans-serif" font-size="23">Laporan · penanganan · aset</text>
+</svg>

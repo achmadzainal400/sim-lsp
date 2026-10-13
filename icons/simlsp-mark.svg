@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Logo SIM-LSP">
+  <path d="M18 52 64 18l46 34" fill="none" stroke="#F3F6F1" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M30 50v57h68V50" fill="none" stroke="#F3F6F1" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M41 67h13v15H41zm33 0h13v15H74z" fill="#148B81" stroke="#F3F6F1" stroke-width="3"/>
+  <path d="M57 76h14v31H57z" fill="#E4AC43"/>
+  <path d="M20 109h88" stroke="#E4AC43" stroke-width="6" stroke-linecap="round"/>
+</svg>
