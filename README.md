@@ -14,6 +14,7 @@ Di **Settings → Pages**, pilih **GitHub Actions** sebagai sumber publikasi. Wo
 - Logo horizontal: `branding/SIM-LSP-logo-horizontal.png`
 - Splash art 1080 × 1920: `splash/SIM-LSP-splash-1080x1920.png`
 - File SVG disertakan supaya bisa diubah ukurannya tanpa pecah.
+- Splash animasi menampilkan indikator memuat sampai halaman dan sesi awal selesai dimuat.
 
 Jangan commit file rahasia atau kunci server. Secret notifikasi VAPID tetap disimpan di Supabase.
 
