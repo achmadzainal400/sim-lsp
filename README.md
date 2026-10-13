@@ -16,3 +16,7 @@ Di **Settings → Pages**, pilih **GitHub Actions** sebagai sumber publikasi. Wo
 - File SVG disertakan supaya bisa diubah ukurannya tanpa pecah.
 
 Jangan commit file rahasia atau kunci server. Secret notifikasi VAPID tetap disimpan di Supabase.
+
+## Backend Supabase
+
+GitHub Actions menerbitkan halaman web statis. Login, data bersama, dan notifikasi tetap memakai proyek Supabase. Edge Function `simlsp-notify-new-report` perlu di-deploy tersendiri di Supabase saat kodenya berubah; deploy GitHub Pages tidak menerbitkan Edge Function. Kode notifikasi membuka `https://achmadzainal400.github.io/sim-lsp/` setelah Edge Function diperbarui.
