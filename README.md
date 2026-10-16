@@ -10,7 +10,10 @@ Di **Settings → Pages**, pilih **GitHub Actions** sebagai sumber publikasi. Wo
 
 ## Ikon dan splash art
 
-- Ikon aplikasi dari ilustrasi palu dan obeng: `icons/simlsp-192.png` dan `icons/simlsp-512.png`
+- Ikon aplikasi memakai lambang Madrasah Darul Falah: `icons/simlsp-192.png` dan `icons/simlsp-512.png`
+- Ikon maskable Android: `icons/simlsp-192-maskable.png` dan `icons/simlsp-512-maskable.png`
+- Gambar palu dan obeng tetap dipakai khusus untuk layar pemuatan: `icons/simlsp-refresh-tools.png`
+- Sumber lambang: `branding/SIM-LSP-logo-madrasah.png`
 - Ikon notifikasi memakai ilustrasi perkakas transparan; `simlsp-notification-badge.png` khusus badge Android.
 - Logo horizontal: `branding/SIM-LSP-logo-horizontal.png`
 - Splash art 1080 × 1920: `splash/SIM-LSP-splash-1080x1920.png`
