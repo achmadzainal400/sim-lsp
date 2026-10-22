@@ -4,6 +4,10 @@ PWA Sarana Prasarana Madrasah Darul Falah. Situs dipublikasikan melalui GitHub P
 
 Alamat situs: https://achmadzainal400.github.io/sim-lsp/
 
+## Offline
+
+Setelah halaman berhasil dibuka online, service worker menyimpan shell aplikasi dan aset statis agar SIM-LSP tetap bisa dibuka saat jaringan putus. Login, pembacaan data bersama, pengiriman laporan, dan sinkronisasi aset tetap memerlukan internet; cache offline tidak menggantikan Supabase.
+
 ## Publikasi
 
 Di **Settings → Pages**, pilih **GitHub Actions** sebagai sumber publikasi. Workflow `.github/workflows/deploy-pages.yml` menerbitkan isi folder ini.
@@ -24,6 +28,16 @@ Jangan commit file rahasia atau kunci server. Secret notifikasi VAPID tetap disi
 
 ## Backend Supabase
 
-GitHub Actions menerbitkan halaman web statis. Login, data bersama, dan notifikasi tetap memakai proyek Supabase. Edge Function `simlsp-notify-new-report` perlu di-deploy tersendiri di Supabase saat kodenya berubah; deploy GitHub Pages tidak menerbitkan Edge Function. Kode notifikasi membuka `https://achmadzainal400.github.io/sim-lsp/` setelah Edge Function diperbarui.
+Login, data bersama, dan notifikasi memakai proyek Supabase. SQL sumber berada di `supabase/sql/`; skrip sumber mengaktifkan RLS pada tabel privat, mencabut akses tabel langsung, dan memeriksa peran di RPC. Jalankan `SIM-LSP-Security-Check.sql` untuk memeriksa konfigurasi proyek Supabase yang aktif; isi file lokal saja tidak membuktikan SQL sudah diterapkan di server.
+
+GitHub Actions dapat menerbitkan Edge Functions setelah repo memiliki variable `SUPABASE_FUNCTIONS_DEPLOY_ENABLED=true` dan secret `SUPABASE_ACCESS_TOKEN`. Deploy dipicu ketika sumber fungsi berubah atau dari **Actions → Deploy SIM-LSP Supabase Functions → Run workflow**. Workflow ini menerbitkan kode fungsi saja; SQL dan secrets seperti VAPID serta kredensial Firebase tetap dikelola di Supabase.
 
 Untuk perbaikan notifikasi terbaru, jalankan ulang `SIM-LSP-PWA-Notifikasi.sql` di SQL Editor Supabase, deploy ulang fungsi `simlsp-notify-new-report`, lalu di SIM-LSP buka **Data & cadangan → Kirim notifikasi uji**. Tombol uji mengirim ke perangkat milik akun Sarpras/Admin yang sedang masuk dan menampilkan pesan jika konfigurasi server belum lengkap.
+
+## Angka antrean di Android
+
+Pembaruan APK Android memakai satu notifikasi tetap yang menampilkan jumlah laporan aktif dalam antrean, termasuk `0`. Untuk menyiapkannya, jalankan `SIM-LSP-QueueNotification.sql`, simpan service account Firebase sebagai secret `FIREBASE_SERVICE_ACCOUNT_JSON` di Supabase, lalu deploy fungsi `simlsp-queue-notification`. Jangan commit service account atau private key.
+
+## APK
+
+`SIM-LSP-Android.apk` adalah satu-satunya unduhan APK di situs. Isinya saat ini memakai `versionName 1.3` dan `versionCode 4`; versi 1.4 di konfigurasi proyek Android belum menjadi APK rilis. Jangan mengganti nama APK sebelum nilai versi di dalam paket diverifikasi. Rilis APK berikutnya perlu dibangun dan ditandatangani dengan konfigurasi Firebase serta signing key yang benar.

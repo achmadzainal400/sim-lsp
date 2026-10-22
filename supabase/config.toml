@@ -1,0 +1,7 @@
+project_id = "lcfqhrziveksvxuldsfa"
+
+[functions.simlsp-admin-accounts]
+verify_jwt = true
+
+[functions.simlsp-queue-notification]
+verify_jwt = true
