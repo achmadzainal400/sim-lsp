@@ -5,3 +5,6 @@ verify_jwt = true
 
 [functions.simlsp-queue-notification]
 verify_jwt = true
+
+[functions.simlsp-notify-new-report]
+verify_jwt = false
