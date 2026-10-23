@@ -206,7 +206,9 @@ Deno.serve(async (request: Request) => {
   const reportObject = String(report.object || "Laporan fasilitas baru").trim();
   const reportLocation = String(report.location || "").trim();
   const reporterName = String(report.reporterName || "Warga Madrasah").trim();
-  const detailLines = [reportObject, reportLocation ? "Lokasi: " + reportLocation : "", "Pelapor: " + reporterName, report.code ? "Kode: " + String(report.code) : ""]
+  const reportDescription = String(report.description || "").trim();
+  const objectLine = reportObject.slice(0, 38) + (reportLocation ? " — " + reportLocation.slice(0, 24) : "");
+  const detailLines = [objectLine, "Pelapor: " + reporterName.slice(0, 35), reportDescription ? "Uraian: " + reportDescription.slice(0, 55) : ""]
     .filter(Boolean);
   const notice = JSON.stringify({
     title: "Laporan baru masuk",
