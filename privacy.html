@@ -51,7 +51,7 @@
     <h2>Penggunaan informasi Google</h2>
     <p>Fitur cadangan Google Drive hanya dapat digunakan oleh Sarpras/Admin yang masuk ke SIM-LSP dan secara sadar menyetujui akses Google. Fitur ini meminta alamat email akun Google dan izin <code>drive.file</code> untuk membuat serta mengelola berkas cadangan SIM-LSP yang dibuat oleh aplikasi. Aplikasi tidak meminta akses umum ke seluruh isi Drive.</p>
     <p>Alamat email Google yang terhubung dan token untuk memperbarui akses disimpan pada layanan Supabase yang menjadi backend SIM-LSP. Token penyegaran dienkripsi sebelum disimpan. Akses tersebut dipakai untuk mengunggah berkas cadangan ke akun Drive yang dipilih.</p>
-    <p>Paket cadangan berisi data SIM-LSP dalam JSON, Excel laporan, dan Excel aset. JSON dapat memuat metadata atau lokasi penyimpanan foto, tetapi berkas gambar foto itu sendiri tidak disertakan dalam paket cadangan Google Drive.</p>
+    <p>Paket cadangan berisi data SIM-LSP dalam JSON, Excel laporan, dan Excel aset. Jika laporan memiliki foto yang masih tersedia di Storage, file gambar ikut disalin ke subfolder <em>Foto-Bukti</em> di folder cadangan Google Drive. JSON tetap mencatat path Storage asli dan menambahkan nama serta ID file foto hasil backup sebagai referensi. Foto tetap disimpan di Storage Supabase; backup Drive merupakan salinan tambahan.</p>
 
     <h2>Tujuan dan pihak pemroses</h2>
     <p>Informasi digunakan untuk mengelola laporan, menindaklanjuti kebutuhan sarana prasarana, mencatat aset, dan membuat cadangan operasional. SIM-LSP tidak menjual informasi pribadi. Data diproses melalui Supabase untuk layanan backend dan penyimpanan, serta Google Drive ketika admin menggunakan fitur cadangan.</p>

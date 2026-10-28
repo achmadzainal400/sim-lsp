@@ -1,6 +1,6 @@
 # Menyiapkan backup SIM-LSP ke Google Drive
 
-Fungsi backup menyimpan tiga file setiap kali dipakai: JSON lengkap SIM-LSP, Excel laporan, dan Excel aset beserta riwayat stok. Foto tidak disalin; metadata dan lokasi file foto tetap ada di JSON. Hanya Sarpras/Admin yang dapat menyambungkan Drive, mengirim backup, dan melihat pemakaian Storage.
+Fungsi backup menyimpan JSON lengkap SIM-LSP, Excel laporan, Excel aset beserta riwayat stok, dan salinan semua foto bukti yang masih tersedia di Storage. Foto disimpan di subfolder `Foto-Bukti` dalam folder cadangan bertanggal; JSON menyertakan referensi file foto di Drive. Foto asli tetap berada di Storage Supabase. Hanya Sarpras/Admin yang dapat menyambungkan Drive, mengirim backup, dan melihat pemakaian Storage.
 
 ## 1. Siapkan Google Cloud
 

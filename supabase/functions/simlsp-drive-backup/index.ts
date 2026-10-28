@@ -319,6 +319,81 @@ async function uploadDriveFile(file: File, name: string, parentId: string, acces
   return await response.json();
 }
 
+function collectBackupPhotos(backup: Record<string, any>) {
+  const photos: Array<Record<string, any>> = [];
+  const seenPaths = new Set<string>();
+  for (const report of backup.reports) {
+    if (!Array.isArray(report.photos)) continue;
+    const reportId = String(report.id || "");
+    if (!/^[A-Za-z0-9_-]+$/.test(reportId)) {
+      throw new HttpError("ID laporan yang memiliki foto tidak valid. Periksa data laporan sebelum backup.", 400);
+    }
+    const ticket = String(report.code || reportId).normalize("NFKD").replace(/[^A-Za-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 48) || reportId;
+    for (let index = 0; index < report.photos.length; index++) {
+      const photo = report.photos[index];
+      const path = String(photo?.path || "");
+      if (!path || !/^reports\/[A-Za-z0-9_-]+\/[A-Za-z0-9_-]+\.jpg$/.test(path) || !path.startsWith("reports/" + reportId + "/")) {
+        throw new HttpError("Lokasi foto pada tiket " + ticket + " tidak valid. Backup dibatalkan agar foto tidak terlewat.", 400);
+      }
+      if (seenPaths.has(path)) throw new HttpError("Ada lokasi foto ganda pada data laporan. Periksa tiket " + ticket + " sebelum backup.", 400);
+      seenPaths.add(path);
+      photos.push({ report, photo, path, ticket, index });
+    }
+  }
+  return photos;
+}
+
+async function uploadReportPhotoToDrive(
+  entry: Record<string, any>,
+  service: ReturnType<typeof serviceClient>,
+  parentId: string,
+  accessToken: string,
+) {
+  const { data, error } = await service.storage.from("report-photos").download(String(entry.path));
+  if (error || !data) {
+    throw new HttpError("Foto tiket " + entry.ticket + " nomor " + (entry.index + 1) + " tidak ditemukan di Storage. Backup dibatalkan agar foto tidak hilang.", 424);
+  }
+  const mime = String(data.type || entry.photo.contentType || "image/jpeg").toLowerCase().split(";")[0];
+  const extension = mime === "image/jpeg" ? ".jpg" : mime === "image/png" ? ".png" : mime === "image/webp" ? ".webp" : "";
+  if (!extension || data.size < 1 || data.size > 512 * 1024) {
+    throw new HttpError("Foto tiket " + entry.ticket + " nomor " + (entry.index + 1) + " bukan JPEG/PNG/WebP yang valid atau melebihi 512 KB.", 413);
+  }
+  const name = entry.ticket + "-foto-" + String(entry.index + 1).padStart(2, "0") + extension;
+  const file = new File([data], name, { type: mime });
+  const saved = await uploadDriveFile(file, name, parentId, accessToken);
+  if (!saved.id) throw new HttpError("Foto tiket " + entry.ticket + " gagal disimpan ke Google Drive.", 502);
+  entry.photo.backupFileName = name;
+  entry.photo.backupDriveFileId = String(saved.id);
+  entry.photo.backupMimeType = mime;
+  entry.photo.backupSize = Number(saved.size || data.size);
+  return { id: String(saved.id), name: String(saved.name || name), size: Number(saved.size || data.size), kind: "photo" as const };
+}
+
+async function uploadPhotosConcurrently(
+  photos: Array<Record<string, any>>,
+  service: ReturnType<typeof serviceClient>,
+  parentId: string,
+  accessToken: string,
+) {
+  const uploaded: Array<{ id: string; name: string; size: number; kind: "photo" }> = [];
+  let nextIndex = 0;
+  let failure: unknown = null;
+  const worker = async () => {
+    while (!failure) {
+      const index = nextIndex++;
+      if (index >= photos.length) return;
+      try {
+        uploaded.push(await uploadReportPhotoToDrive(photos[index], service, parentId, accessToken));
+      } catch (error) {
+        failure = error;
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(4, photos.length) }, () => worker()));
+  if (failure) throw failure;
+  return uploaded;
+}
+
 async function deleteDriveFile(fileId: string, accessToken: string) {
   try {
     await driveRequest("https://www.googleapis.com/drive/v3/files/" + encodeURIComponent(fileId), accessToken, { method: "DELETE" });
@@ -356,12 +431,15 @@ async function uploadBackup(request: Request, service: ReturnType<typeof service
   if (files.reduce((sum, entry) => sum + entry.file.size, 0) > MAX_TOTAL_BYTES) {
     throw new HttpError("Paket backup melebihi batas 48 MB. Kurangi data lalu ulangi.", 413);
   }
+  let backupData: Record<string, any>;
+  let photos: Array<Record<string, any>>;
   try {
-    const parsed = JSON.parse(await files[0].file.text());
-    if (parsed?.app !== "SIM-LSP" || !Array.isArray(parsed?.reports) || !Array.isArray(parsed?.assets)) {
-      throw new Error("Struktur JSON backup tidak sesuai.");
-    }
+    backupData = JSON.parse(await files[0].file.text());
   } catch (_) { throw new HttpError("File JSON cadangan tidak valid.", 400); }
+  if (backupData?.app !== "SIM-LSP" || !Array.isArray(backupData?.reports) || !Array.isArray(backupData?.assets)) {
+    throw new HttpError("Struktur JSON backup tidak sesuai.", 400);
+  }
+  photos = collectBackupPhotos(backupData);
 
   const { data: connection, error: connectionError } = await service.from("simlsp_drive_connections")
     .select("refresh_token_ciphertext,refresh_token_iv,root_folder_id,backup_folder_id")
@@ -372,7 +450,7 @@ async function uploadBackup(request: Request, service: ReturnType<typeof service
     throw new HttpError("Konfigurasi OAuth Google belum lengkap di Supabase.", 503);
   }
 
-  let uploaded: Array<{ id: string; name: string; size: number }> = [];
+  let uploaded: Array<{ id: string; name: string; size: number; kind: "photo" | "data" }> = [];
   let accessToken = "";
   let backupSnapshotFolderId = "";
   const stamp = new Date().toISOString().replaceAll(":", "-").replaceAll(".", "-");
@@ -389,12 +467,28 @@ async function uploadBackup(request: Request, service: ReturnType<typeof service
     backupSnapshotFolderId = String(snapshot.id || "");
     if (!backupSnapshotFolderId) throw new HttpError("Folder backup gagal dibuat di Google Drive.", 502);
 
-    for (const entry of files) {
+    if (photos.length) {
+      const photoFolder = await createFolder("Foto-Bukti", backupSnapshotFolderId, accessToken);
+      const photoFolderId = String(photoFolder.id || "");
+      if (!photoFolderId) throw new HttpError("Folder foto bukti gagal dibuat di Google Drive.", 502);
+      uploaded.push(...await uploadPhotosConcurrently(photos, service, photoFolderId, accessToken));
+      backupData.backupNote = "Foto bukti disertakan pada subfolder Foto-Bukti. Path Storage asli tetap dicatat sebagai metadata.";
+      const json = new File([JSON.stringify(backupData, null, 2)], files[0].file.name, { type: "application/json" });
+      if (json.size > MAX_FILE_BYTES || json.size + files.slice(1).reduce((sum, entry) => sum + entry.file.size, 0) > MAX_TOTAL_BYTES) {
+        throw new HttpError("Data JSON backup setelah ditambahkan referensi foto melebihi batas. Kurangi data laporan lalu ulangi backup.", 413);
+      }
+      files[0].file = json;
+    }
+
+    for (const entry of [...files.slice(1), files[0]]) {
       const saved = await uploadDriveFile(entry.file, entry.name + "-" + stamp + entry.ext, backupSnapshotFolderId, accessToken);
       if (!saved.id) throw new HttpError("Google Drive tidak mengembalikan ID file.", 502);
-      uploaded.push({ id: String(saved.id), name: String(saved.name || entry.name + entry.ext), size: Number(saved.size || entry.file.size) });
+      uploaded.push({ id: String(saved.id), name: String(saved.name || entry.name + entry.ext), size: Number(saved.size || entry.file.size), kind: "data" });
     }
     const totalBytes = uploaded.reduce((sum, item) => sum + item.size, 0);
+    const photoUploads = uploaded.filter((item) => item.kind === "photo");
+    const backupFileSummary = uploaded.filter((item) => item.kind === "data").map(({ name, size }) => ({ name, size }));
+    if (photoUploads.length) backupFileSummary.push({ name: "Foto bukti (" + photoUploads.length + " foto)", size: photoUploads.reduce((sum, item) => sum + item.size, 0) });
     const savedAt = new Date().toISOString();
     const { error: updateError } = await service.from("simlsp_drive_connections").update({
       last_backup_at: savedAt,
@@ -402,12 +496,12 @@ async function uploadBackup(request: Request, service: ReturnType<typeof service
       last_backup_name: snapshotName,
       last_backup_folder_id: backupSnapshotFolderId,
       last_backup_size_bytes: totalBytes,
-      last_backup_files: uploaded.map(({ name, size }) => ({ name, size })),
+      last_backup_files: backupFileSummary,
       last_backup_error: "",
       updated_at: savedAt,
     }).eq("user_id", userId);
     if (updateError) throw new HttpError("File berhasil masuk Drive, tetapi status backup gagal disimpan di SIM-LSP.", 500);
-    return { ok: true, name: snapshotName, folderId: backupSnapshotFolderId, sizeBytes: totalBytes, files: uploaded.map(({ name, size }) => ({ name, size })) };
+    return { ok: true, name: snapshotName, folderId: backupSnapshotFolderId, sizeBytes: totalBytes, photoCount: photoUploads.length, files: backupFileSummary };
   } catch (error) {
     for (const item of uploaded) await deleteDriveFile(item.id, accessToken);
     if (backupSnapshotFolderId) await deleteDriveFile(backupSnapshotFolderId, accessToken);
