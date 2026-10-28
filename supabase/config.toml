@@ -8,3 +8,6 @@ verify_jwt = true
 
 [functions.simlsp-notify-new-report]
 verify_jwt = false
+
+[functions.simlsp-drive-backup]
+verify_jwt = false
