@@ -46,4 +46,10 @@ Backup otomatis memilih koneksi Google Drive admin/sarpras yang paling baru dipe
 
 ## 6. Rekap bulanan
 
-Cetak biru rekap masih menunggu persetujuan sebelum tombol ekspor dibuat. Definisi yang perlu disepakati: periode dihitung dari tanggal laporan dibuat; laporan “open” berarti status belum selesai/ditolak/dibatalkan; dan “overdue” membutuhkan batas waktu/SLA yang belum tersedia pada data laporan saat ini. Rekomendasi awalnya adalah menandai laporan terbuka yang berumur lebih dari 7 hari sebagai overdue.
+Sarpras/Admin dapat memilih bulan pada **Data & cadangan**, lalu mengunduh Excel atau mengirimkannya ke `SIM-LSP/Rekap Bulanan/YYYY-MM` pada Google Drive. Workbook memiliki:
+
+- `Ringkasan`: jumlah tiket pada setiap status, jenis laporan, unit, biaya bahan/jasa, rata-rata hari penyelesaian, serta jumlah laporan terbuka dan terlambat.
+- `Daftar Laporan`: seluruh laporan yang dibuat pada bulan terpilih beserta status, biaya, dan informasi penanganan.
+- `Laporan Terbuka`: semua tiket yang belum selesai saat rekap dibuat. Tiket yang berumur **lebih dari 14 hari** diberi tanda `Terlambat`.
+
+Periode biaya dan agregat mengikuti bulan laporan dibuat. Rata-rata waktu penyelesaian hanya menghitung tiket bulan tersebut yang telah selesai dan memiliki waktu pembuatan serta penyelesaian yang valid. Karena sistem belum menyimpan tenggat/SLA per tiket, label terlambat menggunakan umur tiket 14 hari, bukan tenggat khusus.

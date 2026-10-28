@@ -582,7 +582,7 @@ function nightlyWorkbooks(data: Record<string, any>) {
 }
 
 async function nightlyBackup(service: ReturnType<typeof serviceClient>) {
-  const { data: state, error: stateError } = await service.from("simlsp_shared_state").select("data").eq("id", true).maybeSingle();
+  const { data: state, error: stateError } = await service.from("simlsp_shared_data").select("data").eq("id", 1).maybeSingle();
   if (stateError || !state?.data) throw new HttpError("Data bersama SIM-LSP tidak dapat dibaca untuk backup otomatis.", 500);
   const { data: admins, error: adminError } = await service.from("simlsp_profiles").select("id").eq("role", "sarpras_admin");
   if (adminError || !admins?.length) throw new HttpError("Akun Sarpras/Admin tidak ditemukan.", 409);
@@ -600,6 +600,33 @@ async function nightlyBackup(service: ReturnType<typeof serviceClient>) {
   const request = new Request("https://internal.sim-lsp/functions/v1/simlsp-drive-backup", { method: "POST", body: form });
   const result = await uploadBackup(request, service, userId, NIGHTLY_SOURCE);
   return { ...result, source: NIGHTLY_SOURCE };
+}
+
+async function uploadMonthlySummary(request: Request, service: ReturnType<typeof serviceClient>, userId: string) {
+  let form: FormData;
+  try { form = await request.formData(); } catch (_) { throw new HttpError("File rekap tidak terbaca.", 400); }
+  const period = String(form.get("period") || "");
+  const file = form.get("summary");
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(period)) throw new HttpError("Periode rekap tidak valid.", 400);
+  if (!(file instanceof File) || file.type !== "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" || file.size < 1) throw new HttpError("Pilih file rekap Excel yang valid.", 400);
+  if (file.size > MAX_FILE_BYTES) throw new HttpError("File rekap melebihi batas 24 MB.", 413);
+  const { data: connection, error } = await service.from("simlsp_drive_connections")
+    .select("refresh_token_ciphertext,refresh_token_iv,root_folder_id")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error || !connection?.refresh_token_ciphertext) throw new HttpError("Hubungkan Google Drive terlebih dahulu.", 409);
+  if (!Deno.env.get("GOOGLE_OAUTH_CLIENT_ID") || !Deno.env.get("GOOGLE_OAUTH_CLIENT_SECRET")) throw new HttpError("Konfigurasi OAuth Google belum lengkap di Supabase.", 503);
+  const refreshToken = await decryptRefreshToken(connection.refresh_token_iv, connection.refresh_token_ciphertext);
+  const accessToken = await refreshGoogleAccessToken(refreshToken);
+  let root = connection.root_folder_id ? { id: connection.root_folder_id } : await findFolder(BUCKET, "", accessToken);
+  if (!root?.id) root = await createFolder(BUCKET, "", accessToken);
+  const parent = await getOrCreateFolder("Rekap Bulanan", String(root.id), accessToken);
+  const periodFolder = await getOrCreateFolder(period, String(parent.id), accessToken);
+  await service.from("simlsp_drive_connections").update({ root_folder_id: root.id, updated_at: new Date().toISOString() }).eq("user_id", userId);
+  const safeName = "Rekap-SIM-LSP-" + period + ".xlsx";
+  const uploaded = await uploadDriveFile(file, safeName, String(periodFolder.id), accessToken);
+  if (!uploaded.id) throw new HttpError("Google Drive tidak mengembalikan ID file rekap.", 502);
+  return { ok: true, name: String(uploaded.name || safeName), folderId: String(periodFolder.id), fileId: String(uploaded.id), sizeBytes: Number(uploaded.size || file.size) };
 }
 
 Deno.serve(async (request) => {
@@ -622,6 +649,7 @@ Deno.serve(async (request) => {
     }
     const { service, userId } = await requireAdmin(request);
     if (request.headers.get("content-type")?.toLowerCase().includes("multipart/form-data")) {
+      if (url.searchParams.get("action") === "monthly-summary") return json(await uploadMonthlySummary(request, service, userId));
       const result = await uploadBackup(request, service, userId, "manual");
       return json(result);
     }
