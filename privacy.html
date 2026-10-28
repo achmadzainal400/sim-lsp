@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#102c3a">
+  <meta name="description" content="Kebijakan privasi SIM-LSP Madrasah Darul Falah, termasuk penggunaan Google Drive untuk cadangan data.">
+  <title>Kebijakan Privasi | SIM-LSP</title>
+  <style>
+    :root{color-scheme:light;--navy:#102c3a;--ink:#16313d;--muted:#596d75;--teal:#0d706a;--line:#dce7e5;--paper:#fff;--bg:#f3f6f6}
+    *{box-sizing:border-box}
+    html{scroll-behavior:smooth}
+    body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.7 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+    a{color:var(--teal);text-underline-offset:3px}
+    a:focus-visible{outline:3px solid #168b81;outline-offset:3px;border-radius:3px}
+    header{background:var(--navy);color:#fff}
+    .header-inner,main,footer{width:min(100% - 36px,820px);margin-inline:auto}
+    .header-inner{min-height:88px;display:flex;align-items:center;gap:14px}
+    .logo{width:48px;height:48px;object-fit:contain;background:#fff;border-radius:12px;padding:3px}
+    .brand{font-weight:750;font-size:18px;line-height:1.2}
+    .brand small{display:block;margin-top:4px;color:#c7d8d9;font-size:13px;font-weight:450}
+    main{margin-block:36px 48px;background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:clamp(22px,5vw,44px)}
+    h1{margin:0 0 6px;font-size:clamp(27px,5vw,36px);line-height:1.2;letter-spacing:-.025em}
+    .updated{margin:0 0 28px;color:var(--muted);font-size:14px}
+    h2{margin:29px 0 8px;font-size:19px;line-height:1.35}
+    p{margin:8px 0}
+    ul{padding-left:22px;margin:8px 0}
+    li{padding-left:3px;margin:5px 0}
+    .contact{padding:15px 17px;margin-top:24px;background:#edf7f4;border-left:4px solid var(--teal);border-radius:5px 10px 10px 5px}
+    footer{padding:0 0 28px;color:var(--muted);font-size:13px}
+    @media(max-width:480px){body{font-size:15px}.header-inner,main,footer{width:min(100% - 24px,820px)}.header-inner{min-height:76px}.logo{width:42px;height:42px}main{margin-block:16px 30px;border-radius:12px;padding:20px 17px}h2{font-size:18px}}
+    @media print{body{background:#fff}.header-inner,main,footer{width:100%}header{background:#fff;color:var(--ink);border-bottom:1px solid var(--line)}.brand small{color:var(--muted)}main{margin:20px 0;border:0;padding:0}.contact{break-inside:avoid}a{color:inherit}}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <img class="logo" src="./icons/simlsp-192.png" alt="Lambang SIM-LSP" width="48" height="48">
+      <div class="brand">SIM-LSP<small>Madrasah Darul Falah</small></div>
+    </div>
+  </header>
+  <main>
+    <h1>Kebijakan Privasi</h1>
+    <p class="updated">Terakhir diperbarui: 28 Oktober 2026</p>
+
+    <p>Kebijakan ini menjelaskan bagaimana Sistem Informasi Sarana dan Prasarana Madrasah Darul Falah (SIM-LSP) mengelola informasi saat warga madrasah menggunakan aplikasi dan saat Sarpras/Admin menghubungkan Google Drive untuk membuat cadangan.</p>
+
+    <h2>Informasi yang dikelola</h2>
+    <p>SIM-LSP dapat menyimpan informasi akun seperti nama, username, dan peran; isi laporan sarana prasarana seperti unit, lokasi, uraian, status, serta waktu tindak lanjut; dan data aset seperti nama barang, jumlah, lokasi, status, serta keterangan. Jika pelapor melampirkan foto, foto disimpan pada penyimpanan Supabase yang digunakan SIM-LSP. Hindari memasukkan informasi pribadi yang tidak diperlukan ke dalam laporan.</p>
+
+    <h2>Penggunaan informasi Google</h2>
+    <p>Fitur cadangan Google Drive hanya dapat digunakan oleh Sarpras/Admin yang masuk ke SIM-LSP dan secara sadar menyetujui akses Google. Fitur ini meminta alamat email akun Google dan izin <code>drive.file</code> untuk membuat serta mengelola berkas cadangan SIM-LSP yang dibuat oleh aplikasi. Aplikasi tidak meminta akses umum ke seluruh isi Drive.</p>
+    <p>Alamat email Google yang terhubung dan token untuk memperbarui akses disimpan pada layanan Supabase yang menjadi backend SIM-LSP. Token penyegaran dienkripsi sebelum disimpan. Akses tersebut dipakai untuk mengunggah berkas cadangan ke akun Drive yang dipilih.</p>
+    <p>Paket cadangan berisi data SIM-LSP dalam JSON, Excel laporan, dan Excel aset. JSON dapat memuat metadata atau lokasi penyimpanan foto, tetapi berkas gambar foto itu sendiri tidak disertakan dalam paket cadangan Google Drive.</p>
+
+    <h2>Tujuan dan pihak pemroses</h2>
+    <p>Informasi digunakan untuk mengelola laporan, menindaklanjuti kebutuhan sarana prasarana, mencatat aset, dan membuat cadangan operasional. SIM-LSP tidak menjual informasi pribadi. Data diproses melalui Supabase untuk layanan backend dan penyimpanan, serta Google Drive ketika admin menggunakan fitur cadangan.</p>
+
+    <h2>Penyimpanan dan penghapusan</h2>
+    <p>Data SIM-LSP disimpan selama diperlukan untuk operasional madrasah dan dikelola oleh Sarpras/Admin yang berwenang. Berkas cadangan yang sudah masuk ke Drive berada di akun Google yang menghubungkan fitur tersebut dan dapat dikelola atau dihapus dari Drive oleh pemilik akun.</p>
+    <p>Untuk menghentikan izin Google, buka pengaturan keamanan Akun Google, cari koneksi SIM-LSP, lalu cabut aksesnya. Untuk permintaan penghapusan data SIM-LSP atau informasi koneksi Drive yang tersimpan, hubungi pengelola melalui alamat di bawah. Pencabutan izin Google tidak otomatis menghapus berkas cadangan yang sudah ada di Drive.</p>
+
+    <h2>Keamanan</h2>
+    <p>SIM-LSP menggunakan autentikasi dan pembatasan akses berdasarkan peran. Kredensial OAuth Google tidak ditampilkan di halaman publik aplikasi. Pengguna bertanggung jawab menjaga kerahasiaan akun masing-masing dan tidak membagikan kata sandinya.</p>
+
+    <h2>Perubahan kebijakan</h2>
+    <p>Kebijakan ini dapat diperbarui apabila fitur atau cara pengelolaan data berubah. Versi terbaru akan dipublikasikan pada halaman ini.</p>
+
+    <div class="contact">
+      <strong>Kontak pengelola SIM-LSP</strong>
+      <p>Email: <a href="mailto:achmadzainal400@gmail.com">achmadzainal400@gmail.com</a></p>
+      <p><a href="./">Kembali ke aplikasi SIM-LSP</a></p>
+    </div>
+  </main>
+  <footer>Madrasah Darul Falah · SIM-LSP</footer>
+</body>
+</html>
