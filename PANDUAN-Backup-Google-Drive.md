@@ -22,6 +22,8 @@ Di Supabase Dashboard, buka **Project Settings → Edge Functions → Secrets** 
 | `GOOGLE_OAUTH_CLIENT_SECRET` | Client Secret dari Google Cloud |
 Fungsi menurunkan kunci khusus Google Drive dari `SIMLSP_CREDENTIAL_VAULT_KEY` dengan HKDF; kunci vault tidak dipakai langsung untuk mengenkripsi token Drive. Jangan masukkan nilai Client Secret atau kunci ke file web atau ke percakapan. Jika suatu saat menggunakan secret khusus `SIMLSP_DRIVE_TOKEN_ENCRYPTION_KEY`, kunci itu harus tetap sama; menggantinya membuat token Drive yang sudah tersimpan tidak dapat dibaca.
 
+Untuk backup otomatis, buat satu secret tambahan bernama `SIMLSP_BACKUP_CRON_KEY`. Nilainya harus sama persis pada **Edge Function secret** dan **Supabase Vault**. Kunci ini hanya dipakai pemicu terjadwal untuk memanggil fungsi; jangan letakkan nilainya di repository.
+
 ## 3. Hubungkan akun dan buat backup
 
 Masuk sebagai Sarpras/Admin, buka **Data & cadangan**, lalu pilih **Hubungkan Google Drive**. Setelah izin diberikan, gunakan **Backup sekarang ke Google Drive**. Setiap backup disimpan sebagai folder bertanggal di `SIM-LSP/Backup`.
@@ -31,3 +33,17 @@ Jika koneksi Google dicabut atau kedaluwarsa, hubungkan ulang. Supabase menampil
 ## 4. SQL dan fungsi
 
 Jalankan `supabase/sql/SIM-LSP-Drive-Backup.sql` pada database proyek, lalu deploy fungsi `simlsp-drive-backup` dengan verifikasi JWT bawaan dimatikan. Fungsi memeriksa sendiri sesi dan peran Sarpras/Admin untuk setiap permintaan aplikasi; callback OAuth memakai state acak yang hanya berlaku sekali dan singkat.
+
+## 5. Backup otomatis setiap tengah malam WIB
+
+1. Pastikan `SIMLSP_BACKUP_CRON_KEY` tersimpan pada Edge Function Secrets dan pada Supabase Vault dengan nilai yang identik.
+2. Jalankan `supabase/sql/SIM-LSP-Backup-Otomatis.sql` pada database proyek. SQL membuat tabel status privat dan jadwal `simlsp-drive-backup-nightly`.
+3. Deploy ulang fungsi `simlsp-drive-backup` supaya fungsi mengenali pemanggilan terjadwal.
+4. Jadwal database menggunakan UTC: **17.00 UTC = 00.00 WIB** hari berikutnya. Riwayatnya dapat dilihat di Supabase **Integrations → Cron → Jobs / Run history**.
+5. Admin dapat melihat hasil terakhir di **Data & cadangan**. Jika gagal, aplikasi menampilkan peringatan dan alasannya.
+
+Backup otomatis memilih koneksi Google Drive admin/sarpras yang paling baru diperbarui. Hubungkan setidaknya satu akun Google Drive admin. Setiap malam dibuat snapshot baru; file foto disalin lagi ke snapshot tersebut, sehingga penggunaan Drive akan terus bertambah. Belum ada penghapusan otomatis berdasarkan umur.
+
+## 6. Rekap bulanan
+
+Cetak biru rekap masih menunggu persetujuan sebelum tombol ekspor dibuat. Definisi yang perlu disepakati: periode dihitung dari tanggal laporan dibuat; laporan “open” berarti status belum selesai/ditolak/dibatalkan; dan “overdue” membutuhkan batas waktu/SLA yang belum tersedia pada data laporan saat ini. Rekomendasi awalnya adalah menandai laporan terbuka yang berumur lebih dari 7 hari sebagai overdue.

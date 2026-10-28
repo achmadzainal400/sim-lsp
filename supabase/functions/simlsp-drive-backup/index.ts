@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import * as XLSX from "npm:xlsx@0.18.5";
 
 const APP_ORIGIN = "https://achmadzainal400.github.io";
 const APP_URL = APP_ORIGIN + "/sim-lsp/";
@@ -8,10 +9,11 @@ const REDIRECT_URI = "https://lcfqhrziveksvxuldsfa.supabase.co/functions/v1/siml
 const MAX_FILE_BYTES = 24 * 1024 * 1024;
 const MAX_TOTAL_BYTES = 48 * 1024 * 1024;
 const FOLDER_MIME = "application/vnd.google-apps.folder";
+const NIGHTLY_SOURCE = "nightly" as const;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": APP_ORIGIN,
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-simlsp-cron-key",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Vary": "Origin",
 };
@@ -211,18 +213,44 @@ async function status(service: ReturnType<typeof serviceClient>, userId: string)
     .eq("user_id", userId)
     .maybeSingle();
   if (error) throw new HttpError("Status Google Drive belum dapat dibaca. Jalankan skrip SQL Fase 2.", 500);
+  const { data: run, error: runError } = await service.from("simlsp_drive_backup_runs")
+    .select("run_at,source,status,backup_name,folder_id,size_bytes,files,photo_count,error")
+    .eq("id", true)
+    .maybeSingle();
+  if (runError) throw new HttpError("Status backup otomatis belum tersedia. Jalankan skrip SQL Fase 3.", 500);
+  const runIsNewer = Boolean(run?.run_at && (!data?.last_backup_at || Date.parse(run.run_at) >= Date.parse(data.last_backup_at)));
+  const last = runIsNewer ? run : data;
   return {
     ready: Boolean(Deno.env.get("GOOGLE_OAUTH_CLIENT_ID") && Deno.env.get("GOOGLE_OAUTH_CLIENT_SECRET") && (Deno.env.get("SIMLSP_DRIVE_TOKEN_ENCRYPTION_KEY") || Deno.env.get("SIMLSP_CREDENTIAL_VAULT_KEY"))),
     connected: Boolean(data?.refresh_token_ciphertext),
     googleEmail: data?.google_email || "",
-    lastBackupAt: data?.last_backup_at || null,
-    lastBackupStatus: data?.last_backup_status || "",
-    lastBackupName: data?.last_backup_name || "",
-    lastBackupFolderId: data?.last_backup_folder_id || "",
-    lastBackupSizeBytes: Number(data?.last_backup_size_bytes || 0),
-    lastBackupFiles: Array.isArray(data?.last_backup_files) ? data.last_backup_files : [],
-    lastBackupError: data?.last_backup_error || "",
+    lastBackupAt: runIsNewer ? run.run_at : data?.last_backup_at || null,
+    lastBackupStatus: runIsNewer ? run.status : data?.last_backup_status || "",
+    lastBackupSource: runIsNewer ? run.source : "manual",
+    lastBackupName: runIsNewer ? run.backup_name : data?.last_backup_name || "",
+    lastBackupFolderId: runIsNewer ? run.folder_id : data?.last_backup_folder_id || "",
+    lastBackupSizeBytes: Number((runIsNewer ? run.size_bytes : data?.last_backup_size_bytes) || 0),
+    lastBackupFiles: Array.isArray(runIsNewer ? run.files : data?.last_backup_files) ? (runIsNewer ? run.files : data?.last_backup_files) : [],
+    lastBackupPhotoCount: Number((runIsNewer ? run.photo_count : 0) || 0),
+    lastBackupError: runIsNewer ? run.error || "" : data?.last_backup_error || "",
   };
+}
+
+async function recordBackupRun(service: ReturnType<typeof serviceClient>, run: Record<string, unknown>) {
+  const { error } = await service.from("simlsp_drive_backup_runs").upsert({
+    id: true,
+    run_at: new Date().toISOString(),
+    source: "manual",
+    status: "gagal",
+    backup_name: "",
+    folder_id: "",
+    size_bytes: 0,
+    files: [],
+    photo_count: 0,
+    error: "",
+    ...run,
+  }, { onConflict: "id" });
+  if (error) console.error("Status backup global tidak dapat disimpan:", error.message);
 }
 
 async function refreshGoogleAccessToken(refreshToken: string) {
@@ -411,7 +439,7 @@ async function setBackupFailure(service: ReturnType<typeof serviceClient>, userI
   }).eq("user_id", userId);
 }
 
-async function uploadBackup(request: Request, service: ReturnType<typeof serviceClient>, userId: string) {
+async function uploadBackup(request: Request, service: ReturnType<typeof serviceClient>, userId: string, source: "manual" | "nightly" = "manual") {
   let form: FormData;
   try { form = await request.formData(); } catch (_) { throw new HttpError("Paket backup tidak terbaca. Coba lagi.", 400); }
   const specs = [
@@ -501,14 +529,77 @@ async function uploadBackup(request: Request, service: ReturnType<typeof service
       updated_at: savedAt,
     }).eq("user_id", userId);
     if (updateError) throw new HttpError("File berhasil masuk Drive, tetapi status backup gagal disimpan di SIM-LSP.", 500);
+    await recordBackupRun(service, { run_at: savedAt, source, status: "sukses", backup_name: snapshotName, folder_id: backupSnapshotFolderId, size_bytes: totalBytes, files: backupFileSummary, photo_count: photoUploads.length, error: "" });
     return { ok: true, name: snapshotName, folderId: backupSnapshotFolderId, sizeBytes: totalBytes, photoCount: photoUploads.length, files: backupFileSummary };
   } catch (error) {
     for (const item of uploaded) await deleteDriveFile(item.id, accessToken);
     if (backupSnapshotFolderId) await deleteDriveFile(backupSnapshotFolderId, accessToken);
     const message = safeErrorMessage(error instanceof Error ? error.message : error);
     await setBackupFailure(service, userId, message);
+    await recordBackupRun(service, { source, status: "gagal", backup_name: snapshotName, folder_id: "", size_bytes: 0, files: [], photo_count: 0, error: message });
     throw new HttpError(message, error instanceof HttpError ? error.status : 502);
   }
+}
+
+function safeKeyMatches(left: string, right: string) {
+  const a = new TextEncoder().encode(left), b = new TextEncoder().encode(right);
+  let diff = a.length ^ b.length;
+  for (let i = 0; i < Math.max(a.length, b.length); i++) diff |= (a[i] || 0) ^ (b[i] || 0);
+  return diff === 0;
+}
+
+function jakartaDate(value: unknown) {
+  if (!value) return "";
+  const d = new Date(String(value));
+  return Number.isNaN(d.getTime()) ? String(value) : new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Jakarta", day: "2-digit", month: "2-digit", year: "numeric" }).format(d);
+}
+
+function nightlyWorkbooks(data: Record<string, any>) {
+  const reports = Array.isArray(data.reports) ? data.reports : [];
+  const assets = Array.isArray(data.assets) ? data.assets : [];
+  const transactions = Array.isArray(data.assetTransactions) ? data.assetTransactions : [];
+  const reportRows: unknown[][] = [["No", "Kode Laporan", "Tgl", "Jam", "Unit", "Area/Sarana", "PJS", "Pelapor", "Jenis Laporan", "Objek/Sarana", "Uraian Laporan", "Pelaksana", "Penyetuju", "Status", "BAHAN", "JASA", "Hasil/Tindakan", "Prioritas", "Tanggal Selesai", "Status Persetujuan", "Jumlah Pengadaan", "Satuan Pengadaan"]];
+  reports.slice().sort((a: any, b: any) => Date.parse(a.createdAt || 0) - Date.parse(b.createdAt || 0)).forEach((r: any, i: number) => {
+    const d = r.createdAt ? new Date(r.createdAt) : new Date(0);
+    reportRows.push([i + 1, r.code || "", jakartaDate(r.createdAt), Number.isNaN(d.getTime()) ? "" : new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Jakarta", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(d), r.unit || "", r.location || "", r.pj || "", r.reporterName || "", r.category || "", r.object || "", r.description || "", r.executor || "", r.approverName || "", r.status || "", Number(r.materialCost || 0), Number(r.serviceCost || 0), r.result || "", r.priority || "", jakartaDate(r.completedAt), r.approvalStatus || "", Number(r.acquisitionQuantity || 0), r.acquisitionUnit || ""]);
+  });
+  const assetRows: unknown[][] = [["ID Aset", "Nama Aset", "Satuan", "Jumlah Stok", "Tanggal Pengadaan", "Lokasi/Area", "Status Penggunaan", "Kondisi Fisik", "Keterangan", "Tanggal Dibuat", "Terakhir Diperbarui"]];
+  assets.forEach((a: any) => assetRows.push([a.id || "", a.name || "", a.unit || "", Number(a.quantity || 0), a.acquisitionDate || "", a.area || "", a.status || "", a.condition || "", a.description || "", a.createdAt || "", a.updatedAt || ""]));
+  const historyRows: unknown[][] = [["No", "ID Aset", "Nama Aset", "Jenis Transaksi", "Perubahan Stok", "Satuan", "Sumber", "Kode Laporan", "Catatan", "Oleh", "Tanggal"]];
+  transactions.forEach((t: any, i: number) => {
+    const delta = t.type === "PENYESUAIAN" ? Number(t.adjustment || 0) : ((t.type === "MASUK" || t.type === "TRANSFER_IN") ? Number(t.quantity || 0) : (t.type === "TRANSFER_OUT" ? -Number(t.quantity || 0) : (t.type === "STATUS" ? 0 : -Number(t.quantity || 0))));
+    historyRows.push([i + 1, t.assetId || "", t.assetName || "", t.type || "", delta, t.unit || "", t.source || "", t.reportCode || "", t.note || "", t.actor || "", t.at || ""]);
+  });
+  const make = (sheets: Array<{ name: string; rows: unknown[][] }>) => {
+    const workbook = XLSX.utils.book_new();
+    sheets.forEach((sheet) => XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(sheet.rows), sheet.name));
+    return new Uint8Array(XLSX.write(workbook, { type: "array", bookType: "xlsx" }));
+  };
+  return {
+    reports: make([{ name: "Data Laporan", rows: reportRows }]),
+    assets: make([{ name: "Data Aset", rows: assetRows }, { name: "Riwayat Stok", rows: historyRows }]),
+  };
+}
+
+async function nightlyBackup(service: ReturnType<typeof serviceClient>) {
+  const { data: state, error: stateError } = await service.from("simlsp_shared_state").select("data").eq("id", true).maybeSingle();
+  if (stateError || !state?.data) throw new HttpError("Data bersama SIM-LSP tidak dapat dibaca untuk backup otomatis.", 500);
+  const { data: admins, error: adminError } = await service.from("simlsp_profiles").select("id").eq("role", "sarpras_admin");
+  if (adminError || !admins?.length) throw new HttpError("Akun Sarpras/Admin tidak ditemukan.", 409);
+  const { data: connections, error: connectionError } = await service.from("simlsp_drive_connections").select("user_id,updated_at,refresh_token_ciphertext").in("user_id", admins.map((row: any) => row.id)).order("updated_at", { ascending: false });
+  if (connectionError || !connections?.length) throw new HttpError("Belum ada Google Drive Sarpras/Admin yang terhubung untuk backup otomatis.", 409);
+  const userId = String(connections[0].user_id);
+  const appData = state.data as Record<string, any>;
+  const payload = { app: "SIM-LSP", exportedAt: new Date().toISOString(), ...appData };
+  const workbooks = nightlyWorkbooks(appData);
+  const form = new FormData();
+  const stamp = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  form.append("json", new File([JSON.stringify(payload)], `SIM-LSP-Cadangan-${stamp}.json`, { type: "application/json" }));
+  form.append("reports", new File([workbooks.reports], `SIM-LSP-Laporan-${stamp}.xlsx`, { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+  form.append("assets", new File([workbooks.assets], `SIM-LSP-Aset-${stamp}.xlsx`, { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+  const request = new Request("https://internal.sim-lsp/functions/v1/simlsp-drive-backup", { method: "POST", body: form });
+  const result = await uploadBackup(request, service, userId, NIGHTLY_SOURCE);
+  return { ...result, source: NIGHTLY_SOURCE };
 }
 
 Deno.serve(async (request) => {
@@ -518,9 +609,20 @@ Deno.serve(async (request) => {
   if (request.method !== "POST") return json({ error: "Metode tidak didukung." }, 405);
 
   try {
+    const internalKey = Deno.env.get("SIMLSP_BACKUP_CRON_KEY") || "";
+    if (request.headers.has("x-simlsp-cron-key")) {
+      if (!internalKey || !safeKeyMatches(request.headers.get("x-simlsp-cron-key") || "", internalKey)) throw new HttpError("Kunci pemicu backup otomatis tidak valid.", 401);
+      const service = serviceClient();
+      try { return json(await nightlyBackup(service)); }
+      catch (error) {
+        const message = safeErrorMessage(error instanceof Error ? error.message : error);
+        await recordBackupRun(service, { source: NIGHTLY_SOURCE, status: "gagal", error: message });
+        throw error;
+      }
+    }
     const { service, userId } = await requireAdmin(request);
     if (request.headers.get("content-type")?.toLowerCase().includes("multipart/form-data")) {
-      const result = await uploadBackup(request, service, userId);
+      const result = await uploadBackup(request, service, userId, "manual");
       return json(result);
     }
     let body: { action?: unknown };
