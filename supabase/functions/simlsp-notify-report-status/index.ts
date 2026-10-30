@@ -93,7 +93,7 @@ Deno.serve(async (request: Request) => {
     SELESAI: "Laporan Anda selesai ditangani",
     DITOLAK: "Laporan Anda ditolak",
   };
-  const reason = status === "DITUNDA" ? String(report.deferReason || "") : String(report.approvalNote || report.internalNote || "");
+  const reason = status === "DITUNDA" || status === "DITOLAK" ? String(report.deferReason || report.approvalNote || report.internalNote || "") : "";
   const details = [String(report.object || report.category || "Laporan sarpras"), String(report.location || ""), reason ? "Keterangan: " + reason.slice(0, 100) : ""]
     .filter(Boolean).join(" · ").slice(0, 180);
   const payload = JSON.stringify({ title: statusTitle[status], body: details, tag: "simlsp-status-" + eventId, url: appOrigin + "/?view=reports&reportId=" + encodeURIComponent(reportId) });
