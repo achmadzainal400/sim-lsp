@@ -1,6 +1,6 @@
 "use strict";
 
-const SHELL_CACHE = "simlsp-shell-v4";
+const SHELL_CACHE = "simlsp-shell-v5";
 const APP_SCOPE = self.registration.scope;
 const APP_URL = new URL("./", APP_SCOPE).href;
 const INDEX_URL = new URL("./index.html", APP_SCOPE).href;
@@ -8,6 +8,8 @@ const PRECACHE_URLS = [
   APP_URL,
   INDEX_URL,
   new URL("./manifest.webmanifest", APP_SCOPE).href,
+  new URL("./phase1.js", APP_SCOPE).href,
+  new URL("./phase1.css", APP_SCOPE).href,
   new URL("./icons/simlsp-192.png", APP_SCOPE).href,
   new URL("./icons/simlsp-512.png", APP_SCOPE).href,
   new URL("./icons/simlsp-192-maskable.png", APP_SCOPE).href,

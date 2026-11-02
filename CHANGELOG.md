@@ -11,5 +11,6 @@ Arsip perubahan aplikasi disusun per bulan di folder [`CHANGELOG-ARSIP`](./CHANG
 
 ## Arsip
 
+- [November 2026 — rancangan lokal, belum dirilis](./CHANGELOG-ARSIP/2026-11.md)
 - [Oktober 2026](./CHANGELOG-ARSIP/2026-10.md)
 

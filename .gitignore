@@ -6,3 +6,4 @@ Thumbs.db
 *.key
 SIM-LSP-PUSH-SECRET-LOKAL.txt
 node_modules/
+supabase/.temp/

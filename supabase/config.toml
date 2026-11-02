@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.simlsp-drive-backup]
 verify_jwt = false
+
+[functions.simlsp-notify-app-event]
+verify_jwt = true
