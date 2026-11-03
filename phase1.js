@@ -73,12 +73,12 @@
   if (!APP_VIEWS.includes("info")) APP_VIEWS.push("info");
   if (!initialReportId && requestedInitialView === "info") currentView = "info";
   if (!NAV.some(function (item) { return item.id === "info"; })) {
-    const settingsIndex = NAV.findIndex(function (item) { return item.id === "settings"; });
-    NAV.splice(settingsIndex < 0 ? NAV.length : settingsIndex, 0, {
-      id: "info",
-      icon: "▣",
-      label: "Info Madrasah"
-    });
+    const informationNav = NAV.find(function (item) { return item.id === "sop"; });
+    if (informationNav) {
+      informationNav.id = "info";
+      informationNav.icon = "▧";
+      informationNav.label = "Informasi Madrasah";
+    }
   }
 
   function phase1Initials(name) {
@@ -691,13 +691,18 @@
 
   function phase1RenderInfo() {
     const categoryOptions = ["Semua", "Pengumuman", "SOP", "Jadwal", "Lainnya"];
-    return pageHead("Kanal informasi", "Info Madrasah", "Pengumuman, cuplikan SOP, dan jadwal yang dikelola Sarpras/Admin.", "") +
+    return pageHead("Pusat informasi", "Informasi Madrasah", "Pengumuman resmi, jadwal, SOP, dan panduan madrasah.", "") +
+      phase1InformationTabs("info") +
       (isManager() ? phase1InfoEditorMarkup() : '<div class="banner"><span aria-hidden="true">▣</span><div><strong>Informasi resmi madrasah</strong>Warga dapat membaca pengumuman dan lampiran. Kanal ini tidak menyediakan balasan publik.</div></div>') +
       '<section class="phase1-info-board"><div class="phase1-info-filter"><div><h2>Informasi terbaru</h2><p>Kartu sematan tampil lebih dahulu, lalu posting terbaru.</p></div><label class="field"><span class="field-label">Filter kategori</span><select id="phase1InfoCategory">' + categoryOptions.map(function (category) { return '<option ' + (category === phase1InfoCategory ? "selected" : "") + '>' + esc(category) + '</option>'; }).join("") + '</select></label><button type="button" class="btn secondary small" data-p1-action="refreshInfo">Muat ulang</button></div><div id="phase1InfoPostList" class="phase1-info-post-list" aria-live="polite"></div></section>';
   }
 
+  function phase1InformationTabs(active) {
+    return '<nav class="phase1-info-section-tabs" aria-label="Bagian Informasi Madrasah"><button type="button" data-view="info" ' + (active === "info" ? 'aria-current="page"' : "") + '>Pengumuman</button><button type="button" data-view="sop" ' + (active === "sop" ? 'aria-current="page"' : "") + '>SOP &amp; Panduan</button></nav>';
+  }
+
   function phase1DashboardInfoMarkup() {
-    return '<section class="phase1-dashboard-info-board"><div class="phase1-dashboard-info-head"><div><span class="eyebrow">INFO MADRASAH</span><h2>Pengumuman dan informasi</h2><p>Geser kartu atau gunakan tombol untuk melihat informasi lainnya.</p></div><button type="button" class="btn secondary small" data-view="info">Semua info</button></div><div id="phase1DashboardInfoPostList" class="phase1-info-post-list" aria-live="polite"></div></section>';
+    return '<section class="phase1-dashboard-info-board"><div class="phase1-dashboard-info-head"><div><span class="eyebrow">INFO MADRASAH</span><h2>Pengumuman dan informasi</h2><p>Geser kartu atau gunakan tombol untuk melihat informasi lainnya.</p></div><button type="button" class="btn secondary small" data-view="info">Buka pusat informasi</button></div><div id="phase1DashboardInfoPostList" class="phase1-info-post-list" aria-live="polite"></div></section>';
   }
 
   function phase1RenderDashboardInfo() {
@@ -846,7 +851,8 @@
   }
 
   function phase1RenderSop() {
-    let html = pageHead("Panduan warga", "SOP dan Informasi", "Kumpulan panduan madrasah dan informasi layanan Sarpras.", "");
+    let html = pageHead("Pusat informasi", "Informasi Madrasah", "Pengumuman resmi, jadwal, SOP, dan panduan madrasah.", "");
+    html += phase1InformationTabs("sop");
     html += '<div class="banner sla-inline"><span aria-hidden="true">◷</span><div><strong>Standar layanan laporan</strong><span>Verifikasi ' + esc(TRUST_SLA_CONFIG.verification) + ' · tindak lanjut ' + esc(TRUST_SLA_CONFIG.followUp) + '.</span></div></div>';
     if (phase1SopError) return html + '<div class="banner warning-banner"><span aria-hidden="true">⚠</span><div><strong>Katalog SOP belum dapat dimuat</strong>' + esc(phase1SopError) + '<button type="button" class="btn secondary small" data-p1-action="refreshSops">Coba lagi</button></div></div>';
     const doc = phase1SopDocuments.find(function (item) { return item.id === phase1SelectedSopId && (item.active || isManager()); });

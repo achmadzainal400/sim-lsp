@@ -259,3 +259,10 @@
   .phase1-sop-preview-pdf{height:58vh;min-height:340px}
 }
 @media(prefers-reduced-motion:reduce){.phase1-info-stack-layer,.phase1-sop-card{transition:none!important;scroll-behavior:auto!important}}
+
+.phase1-info-section-tabs{display:flex;gap:5px;width:max-content;max-width:100%;margin:0 0 18px;padding:4px;border:1px solid var(--line);border-radius:13px;background:#eaf2f0}
+.phase1-info-section-tabs button{display:inline-flex;align-items:center;justify-content:center;min-width:150px;min-height:44px;padding:9px 15px;border:0;border-radius:9px;background:transparent;color:var(--muted);font:inherit;font-size:13px;font-weight:750;white-space:nowrap;cursor:pointer}
+.phase1-info-section-tabs button:hover{background:#ffffffa6;color:var(--ink)}
+.phase1-info-section-tabs button[aria-current="page"]{background:#fff;color:var(--teal-dark);box-shadow:0 2px 7px rgba(22,49,61,.1)}
+.phase1-info-section-tabs button:focus-visible{outline:3px solid #148b8140;outline-offset:2px}
+@media(max-width:520px){.phase1-info-section-tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%;gap:4px}.phase1-info-section-tabs button{min-width:0;padding-inline:8px;font-size:12px}}
