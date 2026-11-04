@@ -459,7 +459,7 @@
 
   function phase1ProfileCard() {
     const currentPath = userProfile && userProfile.avatar_path || "";
-    return '<section class="card phase1-profile-card" aria-labelledby="phase1ProfileHeading"><div><span class="stat-icon" aria-hidden="true">◉</span><h2 id="phase1ProfileHeading">Foto profil</h2><p>Foto ini tampil di header, daftar akun, dan diskusi tiket. Gambar diperkecil menjadi JPEG maksimal 256 × 256 piksel dan sekitar 150 KB.</p></div><div class="phase1-profile-editor">' + phase1AvatarMarkup(currentPath, currentActor, "phase1-profile-preview") + '<form id="phase1AvatarForm"><label class="field"><span class="field-label">Pilih foto profil</span><input id="phase1AvatarFile" name="avatar" type="file" accept="image/jpeg,image/png,image/webp" required></label><div class="phase1-profile-actions"><button class="btn small" type="submit">Simpan foto</button><button class="btn secondary small" type="button" data-action="removeAvatar" ' + (currentPath ? "" : "disabled") + '>Hapus foto</button></div><p id="phase1AvatarStatus" class="small-note" role="status" aria-live="polite"></p></form></div></section>';
+    return '<section class="card phase1-profile-card" aria-labelledby="phase1ProfileHeading"><div><span class="stat-icon" aria-hidden="true">◉</span><h2 id="phase1ProfileHeading">Foto profil</h2>' + (isManager() ? '<p>Foto ini tampil di header, daftar akun, dan diskusi tiket. Gambar diperkecil menjadi JPEG maksimal 256 × 256 piksel dan sekitar 150 KB.</p>' : '') + '</div><div class="phase1-profile-editor">' + phase1AvatarMarkup(currentPath, currentActor, "phase1-profile-preview") + '<form id="phase1AvatarForm"><label class="field"><span class="field-label">Pilih foto profil</span><input id="phase1AvatarFile" name="avatar" type="file" accept="image/jpeg,image/png,image/webp" required></label><div class="phase1-profile-actions"><button class="btn small" type="submit">Simpan foto</button><button class="btn secondary small" type="button" data-action="removeAvatar" ' + (currentPath ? "" : "disabled") + '>Hapus foto</button></div><p id="phase1AvatarStatus" class="small-note" role="status" aria-live="polite"></p></form></div></section>';
   }
 
   async function phase1ImageFromFile(file) {
@@ -872,7 +872,7 @@
   function phase1RenderSop() {
     let html = pageHead("Pusat informasi", "Informasi Madrasah", "Pengumuman resmi, jadwal, SOP, dan panduan madrasah.", "");
     html += phase1InformationTabs("sop");
-    html += '<div class="banner sla-inline"><span aria-hidden="true">◷</span><div><strong>Standar layanan laporan</strong><span>Verifikasi ' + esc(TRUST_SLA_CONFIG.verification) + ' · tindak lanjut ' + esc(TRUST_SLA_CONFIG.followUp) + '.</span></div></div>';
+
     if (phase1SopError) return html + '<div class="banner warning-banner"><span aria-hidden="true">⚠</span><div><strong>Katalog SOP belum dapat dimuat</strong>' + esc(phase1SopError) + '<button type="button" class="btn secondary small" data-p1-action="refreshSops">Coba lagi</button></div></div>';
     const doc = phase1SopDocuments.find(function (item) { return item.id === phase1SelectedSopId && (item.active || isManager()); });
     if (phase1SelectedSopId && doc) {
