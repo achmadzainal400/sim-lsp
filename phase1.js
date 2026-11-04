@@ -649,7 +649,10 @@
       const category = String(post.category || (post.kind === "sop_link" ? "SOP" : "Pengumuman"));
       const tone = post.kind === "sop_link" ? "sop" : category === "Jadwal" ? "schedule" : category === "Pengumuman" ? "announcement" : "other";
       const preview = post.kind === "sop_link" ? "Buka panduan SOP" : String(post.body || "").replace(/\s+/g, " ").trim();
-      host.innerHTML = '<div class="phase1-info-carousel phase1-dashboard-info-carousel" id="phase1InfoStack" aria-label="Info Madrasah"><div class="phase1-dashboard-info-current"><button type="button" class="phase1-info-card phase1-dashboard-info-card tone-' + tone + '" data-p1-action="openInfoCard" data-id="' + esc(post.id) + '" aria-label="Baca ' + esc(category) + ': ' + esc(post.title) + '"><span class="phase1-info-card-kicker">' + esc(category) + (post.pinned ? ' · DISEMATKAN' : "") + '</span><strong>' + esc(post.title) + '</strong><span class="phase1-info-card-excerpt">' + esc(preview || "Buka untuk membaca selengkapnya") + '</span></button></div><div class="phase1-info-carousel-controls"><button type="button" class="phase1-carousel-arrow" data-p1-action="previousInfoCard" aria-label="Info sebelumnya" ' + (rows.length < 2 ? "disabled" : "") + '>‹</button><span class="phase1-info-count" aria-live="off">' + (phase1InfoIndex + 1) + ' / ' + rows.length + '</span><button type="button" class="phase1-carousel-arrow" data-p1-action="nextInfoCard" aria-label="Info berikutnya" ' + (rows.length < 2 ? "disabled" : "") + '>›</button></div></div>';
+      const dashboardPager = rows.length > 1
+        ? '<div class="phase1-dashboard-info-controls"><span class="phase1-dashboard-info-pagination" role="status" aria-live="polite" aria-label="Info ' + (phase1InfoIndex + 1) + ' dari ' + rows.length + '"><span class="sr-only">Geser kartu untuk melihat informasi lainnya. Info ' + (phase1InfoIndex + 1) + ' dari ' + rows.length + '.</span>' + rows.map(function (_, index) { return '<i class="' + (index === phase1InfoIndex ? "is-active" : "") + '" aria-hidden="true"></i>'; }).join("") + '</span><div class="phase1-dashboard-info-arrows"><button type="button" class="phase1-carousel-arrow" data-p1-action="previousInfoCard" aria-label="Info sebelumnya">‹</button><button type="button" class="phase1-carousel-arrow" data-p1-action="nextInfoCard" aria-label="Info berikutnya">›</button></div></div>'
+        : "";
+      host.innerHTML = '<div class="phase1-info-carousel phase1-dashboard-info-carousel" id="phase1InfoStack" aria-label="Info Madrasah"><div class="phase1-dashboard-info-current"><button type="button" class="phase1-info-card phase1-dashboard-info-card tone-' + tone + '" data-p1-action="openInfoCard" data-id="' + esc(post.id) + '" aria-label="Baca ' + esc(category) + ': ' + esc(post.title) + '"><span class="phase1-info-card-kicker">' + esc(category) + (post.pinned ? ' · DISEMATKAN' : "") + '</span><strong>' + esc(post.title) + '</strong><span class="phase1-info-card-excerpt">' + esc(preview || "Buka untuk membaca selengkapnya") + '</span></button></div>' + dashboardPager + '</div>';
       phase1AttachInfoCarouselEvents();
       return;
     }
@@ -1114,6 +1117,7 @@
 
   function phase1ScheduleInfoAutoPlay() {
     phase1StopInfoAutoPlay();
+    if (currentView === "dashboard") return;
     const host = document.getElementById("phase1InfoStack");
     const rows = phase1InfoPosts.filter(function (post) { return phase1InfoCategory === "Semua" || post.category === phase1InfoCategory; });
     const reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
