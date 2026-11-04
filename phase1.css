@@ -314,9 +314,11 @@
   .phase1-sop-empty{min-height:160px;padding:22px 14px}
 }
 
-.phase1-dashboard-info-board .phase1-dashboard-info-carousel{display:block;width:100%;max-width:none}
+.phase1-dashboard-info-board .phase1-dashboard-info-carousel{position:relative;display:block;width:100%;max-width:none;touch-action:pan-y;user-select:none;-webkit-user-select:none}
 .phase1-dashboard-info-board .phase1-dashboard-info-current{min-width:0}
-.phase1-dashboard-info-board .phase1-dashboard-info-card{display:grid;min-height:0;height:auto;gap:4px;padding:9px 11px;border-radius:12px;box-shadow:none}
+.phase1-dashboard-info-board .phase1-dashboard-info-current.has-navigation{display:grid;grid-template-columns:44px minmax(0,1fr) 44px;align-items:stretch;gap:6px}
+.phase1-dashboard-info-side-arrow{width:44px;height:44px;align-self:center;justify-self:center;box-shadow:none;font-size:24px}
+.phase1-dashboard-info-board .phase1-dashboard-info-card{display:grid;min-height:0;height:auto;gap:4px;padding:9px 11px;border-radius:12px;box-shadow:none;touch-action:pan-y}
 .phase1-dashboard-info-board .phase1-dashboard-info-card:hover{box-shadow:0 4px 12px #123d3810}
 .phase1-dashboard-info-board .phase1-dashboard-info-card .phase1-info-card-kicker{min-height:20px;padding:2px 7px;font-size:8px}
 .phase1-dashboard-info-board .phase1-dashboard-info-card>strong{font-size:13px;line-height:1.25;letter-spacing:0}
@@ -325,9 +327,6 @@
 .phase1-dashboard-info-pagination{display:flex;min-height:9px;align-items:center;justify-content:center;gap:5px}
 .phase1-dashboard-info-pagination i{display:block;width:6px;height:6px;border-radius:9px;background:#92aaa5;transition:width .16s ease,background-color .16s ease}
 .phase1-dashboard-info-pagination i.is-active{width:15px;background:#0d706a}
-.phase1-dashboard-info-arrows{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
-.phase1-dashboard-info-arrows:focus-within{position:static;display:flex;width:auto;height:auto;justify-content:center;gap:8px;margin:8px auto 0;overflow:visible;clip:auto;white-space:normal}
-.phase1-dashboard-info-arrows .phase1-carousel-arrow{width:44px;height:44px}
-@media(min-width:681px){.phase1-dashboard-info-controls{justify-content:flex-end;gap:10px;min-height:36px}.phase1-dashboard-info-pagination{margin-right:auto}.phase1-dashboard-info-arrows{position:static;display:flex;width:auto;height:auto;justify-content:flex-end;gap:6px;margin:0;overflow:visible;clip:auto;white-space:normal}.phase1-dashboard-info-arrows .phase1-carousel-arrow{width:36px;height:36px;font-size:22px}}
+@media(min-width:681px){.phase1-dashboard-info-controls{min-height:9px}}
 @media(max-width:760px){.phase1-dashboard-info-board .phase1-dashboard-info-card{padding:8px 10px}.phase1-dashboard-info-controls{margin-top:3px}}
 @media(prefers-reduced-motion:reduce){.phase1-dashboard-info-pagination i{transition:none}}

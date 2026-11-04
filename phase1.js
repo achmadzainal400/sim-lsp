@@ -649,10 +649,16 @@
       const category = String(post.category || (post.kind === "sop_link" ? "SOP" : "Pengumuman"));
       const tone = post.kind === "sop_link" ? "sop" : category === "Jadwal" ? "schedule" : category === "Pengumuman" ? "announcement" : "other";
       const preview = post.kind === "sop_link" ? "Buka panduan SOP" : String(post.body || "").replace(/\s+/g, " ").trim();
-      const dashboardPager = rows.length > 1
-        ? '<div class="phase1-dashboard-info-controls"><span class="phase1-dashboard-info-pagination" role="status" aria-live="polite" aria-label="Info ' + (phase1InfoIndex + 1) + ' dari ' + rows.length + '"><span class="sr-only">Geser kartu untuk melihat informasi lainnya. Info ' + (phase1InfoIndex + 1) + ' dari ' + rows.length + '.</span>' + rows.map(function (_, index) { return '<i class="' + (index === phase1InfoIndex ? "is-active" : "") + '" aria-hidden="true"></i>'; }).join("") + '</span><div class="phase1-dashboard-info-arrows"><button type="button" class="phase1-carousel-arrow" data-p1-action="previousInfoCard" aria-label="Info sebelumnya">‹</button><button type="button" class="phase1-carousel-arrow" data-p1-action="nextInfoCard" aria-label="Info berikutnya">›</button></div></div>'
+      const dashboardPreviousButton = rows.length > 1
+        ? '<button type="button" class="phase1-carousel-arrow phase1-dashboard-info-side-arrow" data-p1-action="previousInfoCard" aria-label="Info sebelumnya">‹</button>'
         : "";
-      host.innerHTML = '<div class="phase1-info-carousel phase1-dashboard-info-carousel" id="phase1InfoStack" aria-label="Info Madrasah"><div class="phase1-dashboard-info-current"><button type="button" class="phase1-info-card phase1-dashboard-info-card tone-' + tone + '" data-p1-action="openInfoCard" data-id="' + esc(post.id) + '" aria-label="Baca ' + esc(category) + ': ' + esc(post.title) + '"><span class="phase1-info-card-kicker">' + esc(category) + (post.pinned ? ' · DISEMATKAN' : "") + '</span><strong>' + esc(post.title) + '</strong><span class="phase1-info-card-excerpt">' + esc(preview || "Buka untuk membaca selengkapnya") + '</span></button></div>' + dashboardPager + '</div>';
+      const dashboardNextButton = rows.length > 1
+        ? '<button type="button" class="phase1-carousel-arrow phase1-dashboard-info-side-arrow" data-p1-action="nextInfoCard" aria-label="Info berikutnya">›</button>'
+        : "";
+      const dashboardPager = rows.length > 1
+        ? '<div class="phase1-dashboard-info-controls"><span class="phase1-dashboard-info-pagination" role="status" aria-live="polite" aria-label="Info ' + (phase1InfoIndex + 1) + ' dari ' + rows.length + '"><span class="sr-only">Geser kartu atau gunakan tombol kiri dan kanan untuk melihat informasi lainnya. Info ' + (phase1InfoIndex + 1) + ' dari ' + rows.length + '.</span>' + rows.map(function (_, index) { return '<i class="' + (index === phase1InfoIndex ? "is-active" : "") + '" aria-hidden="true"></i>'; }).join("") + '</span></div>'
+        : "";
+      host.innerHTML = '<div class="phase1-info-carousel phase1-dashboard-info-carousel" id="phase1InfoStack" aria-label="Info Madrasah"><div class="phase1-dashboard-info-current' + (rows.length > 1 ? ' has-navigation' : '') + '">' + dashboardPreviousButton + '<button type="button" class="phase1-info-card phase1-dashboard-info-card tone-' + tone + '" data-p1-action="openInfoCard" data-id="' + esc(post.id) + '" aria-label="Baca ' + esc(category) + ': ' + esc(post.title) + '"><span class="phase1-info-card-kicker">' + esc(category) + (post.pinned ? ' · DISEMATKAN' : "") + '</span><strong>' + esc(post.title) + '</strong><span class="phase1-info-card-excerpt">' + esc(preview || "Buka untuk membaca selengkapnya") + '</span></button>' + dashboardNextButton + '</div>' + dashboardPager + '</div>';
       phase1AttachInfoCarouselEvents();
       return;
     }
@@ -1129,7 +1135,12 @@
   }
 
   function phase1MoveInfoCard(direction) {
-    const rows = phase1InfoPosts.filter(function (post) { return phase1InfoCategory === "Semua" || post.category === phase1InfoCategory; });
+    const rows = phase1InfoPosts.filter(function (post) {
+      return currentView === "dashboard" || phase1InfoCategory === "Semua" || post.category === phase1InfoCategory;
+    });
+    rows.sort(function (a, b) {
+      return Number(!!b.pinned) - Number(!!a.pinned) || String(b.created_at || "").localeCompare(String(a.created_at || ""));
+    });
     if (rows.length < 2) return;
     const activeAction = document.activeElement && document.activeElement.closest ? document.activeElement.closest("[data-p1-action]") : null;
     const focusAction = activeAction && activeAction.getAttribute("data-p1-action");
@@ -1140,6 +1151,21 @@
       if (replacement) replacement.focus({ preventScroll: true });
     }
     phase1ScheduleInfoAutoPlay();
+  }
+
+  function phase1CompleteInfoSwipe(dx, dy, event) {
+    if (Math.abs(dx) < 48 || Math.abs(dx) <= Math.abs(dy) * 1.2) return false;
+    if (event && event.cancelable) event.preventDefault();
+    phase1InfoSuppressClick = true;
+    window.setTimeout(function () { phase1InfoSuppressClick = false; }, 300);
+    phase1MoveInfoCard(dx < 0 ? 1 : -1);
+    window.clearTimeout(phase1InfoResumeTimer);
+    phase1InfoResumeTimer = window.setTimeout(function () {
+      phase1InfoPauseReasons.delete("pointer");
+      phase1InfoPauseReasons.delete("touch");
+      phase1ScheduleInfoAutoPlay();
+    }, 1000);
+    return true;
   }
 
   function phase1AttachInfoCarouselEvents() {
@@ -1186,18 +1212,7 @@
       const dx = event.clientX - phase1InfoPointerDown.x;
       const dy = event.clientY - phase1InfoPointerDown.y;
       phase1InfoPointerDown = null;
-      if (Math.abs(dx) >= 48 && Math.abs(dx) > Math.abs(dy) * 1.2) {
-        event.preventDefault();
-        phase1InfoSuppressClick = true;
-        window.setTimeout(function () { phase1InfoSuppressClick = false; }, 300);
-        phase1MoveInfoCard(dx < 0 ? 1 : -1);
-        window.clearTimeout(phase1InfoResumeTimer);
-        phase1InfoResumeTimer = window.setTimeout(function () {
-          phase1InfoPauseReasons.delete("pointer");
-          phase1InfoPauseReasons.delete("touch");
-          phase1ScheduleInfoAutoPlay();
-        }, 1000);
-      }
+      phase1CompleteInfoSwipe(dx, dy, event);
       if (event.pointerType === "touch") {
         window.clearTimeout(phase1InfoResumeTimer);
         phase1InfoResumeTimer = window.setTimeout(function () {
@@ -1206,6 +1221,32 @@
         }, 1000);
       }
     });
+    stack.addEventListener("touchstart", function (event) {
+      if (!event.target.closest(".phase1-info-card") || event.touches.length !== 1) return;
+      const touch = event.touches[0];
+      phase1InfoPointerDown = { x: touch.clientX, y: touch.clientY, id: "touch" };
+      phase1InfoPauseReasons.add("touch");
+      phase1ScheduleInfoAutoPlay();
+    }, { passive: true });
+    stack.addEventListener("touchend", function (event) {
+      if (!phase1InfoPointerDown || phase1InfoPointerDown.id !== "touch") return;
+      const touch = event.changedTouches[0];
+      const dx = touch.clientX - phase1InfoPointerDown.x;
+      const dy = touch.clientY - phase1InfoPointerDown.y;
+      phase1InfoPointerDown = null;
+      if (!phase1CompleteInfoSwipe(dx, dy, event)) {
+        window.clearTimeout(phase1InfoResumeTimer);
+        phase1InfoResumeTimer = window.setTimeout(function () {
+          phase1InfoPauseReasons.delete("touch");
+          phase1ScheduleInfoAutoPlay();
+        }, 1000);
+      }
+    }, { passive: false });
+    stack.addEventListener("touchcancel", function () {
+      phase1InfoPointerDown = null;
+      phase1InfoPauseReasons.delete("touch");
+      phase1ScheduleInfoAutoPlay();
+    }, { passive: true });
     stack.addEventListener("pointercancel", function () {
       phase1InfoPointerDown = null;
       phase1InfoPauseReasons.delete("touch");
