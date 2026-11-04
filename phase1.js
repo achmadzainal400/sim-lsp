@@ -600,10 +600,12 @@
 
   function phase1InfoPostMarkup(post, index) {
     const isSopLink = post.kind === "sop_link";
+    const category = String(post.category || "Pengumuman");
+    const tone = isSopLink ? "sop" : category === "Jadwal" ? "schedule" : category === "Pengumuman" ? "announcement" : "other";
     const layer = index;
     const card = isSopLink
-      ? '<button type="button" class="phase1-info-card phase1-info-sop-card gradient-' + esc(post.gradient || "mint") + '" data-p1-action="openInfoCard" data-id="' + esc(post.id) + '" aria-label="Buka SOP ' + esc(post.title) + '"><span class="phase1-info-card-kicker">SOP MADRASAH</span><strong>' + esc(post.title) + '</strong><span class="phase1-info-card-link">Buka panduan <span aria-hidden="true">↗</span></span></button>'
-      : '<button type="button" class="phase1-info-card" data-p1-action="openInfoCard" data-id="' + esc(post.id) + '" aria-label="Baca informasi ' + esc(post.title) + '"><span class="phase1-info-card-kicker">' + esc(post.category || "Pengumuman") + (post.pinned ? ' · DISEMATKAN' : "") + '</span><strong>' + esc(post.title) + '</strong><span class="phase1-info-card-excerpt">' + esc(String(post.body || "").slice(0, 190)) + '</span><span class="phase1-info-card-date">' + esc(dateText(post.created_at, true)) + '</span></button>';
+      ? '<button type="button" class="phase1-info-card phase1-info-sop-card tone-' + tone + ' gradient-' + esc(post.gradient || "mint") + '" data-p1-action="openInfoCard" data-id="' + esc(post.id) + '" aria-label="Buka SOP ' + esc(post.title) + '"><span class="phase1-info-card-kicker">SOP MADRASAH</span><strong>' + esc(post.title) + '</strong><span class="phase1-info-card-link">Buka panduan <span aria-hidden="true">↗</span></span></button>'
+      : '<button type="button" class="phase1-info-card tone-' + tone + '" data-p1-action="openInfoCard" data-id="' + esc(post.id) + '" aria-label="Baca informasi ' + esc(post.title) + '"><span class="phase1-info-card-kicker">' + esc(category) + (post.pinned ? ' · DISEMATKAN' : "") + '</span><strong>' + esc(post.title) + '</strong><span class="phase1-info-card-excerpt">' + esc(String(post.body || "").slice(0, 190)) + '</span><span class="phase1-info-card-date">' + esc(dateText(post.created_at, true)) + '</span></button>';
     return '<div class="phase1-info-stack-layer" data-layer="' + layer + '" ' + (layer ? 'aria-hidden="true" inert' : "") + '>' + card + '</div>';
   }
 
@@ -619,6 +621,7 @@
   function phase1RenderInfoList() {
     const host = document.getElementById(currentView === "dashboard" ? "phase1DashboardInfoPostList" : "phase1InfoPostList");
     if (!host) return;
+    const isDashboard = host.id === "phase1DashboardInfoPostList";
     if (phase1InfoError) {
       host.innerHTML = '<div class="banner warning-banner"><span>⚠</span><div><strong>Info Madrasah belum dapat dimuat</strong>' + esc(phase1InfoError) + '</div></div>';
       return;
@@ -627,7 +630,7 @@
       host.innerHTML = '<div class="empty"><strong>Memuat Info Madrasah…</strong></div>';
       return;
     }
-    const rows = phase1InfoPosts.filter(function (post) { return phase1InfoCategory === "Semua" || post.category === phase1InfoCategory; });
+    const rows = phase1InfoPosts.filter(function (post) { return isDashboard || phase1InfoCategory === "Semua" || post.category === phase1InfoCategory; });
     rows.sort(function (a, b) { return Number(!!b.pinned) - Number(!!a.pinned) || String(b.created_at || "").localeCompare(String(a.created_at || "")); });
     if (rows.length && phase1InfoIndex >= rows.length) phase1InfoIndex = 0;
     if (phase1InfoDetailId) {
@@ -640,6 +643,15 @@
         return;
       }
       phase1InfoDetailId = "";
+    }
+    if (isDashboard && rows.length) {
+      const post = rows[phase1InfoIndex];
+      const category = String(post.category || (post.kind === "sop_link" ? "SOP" : "Pengumuman"));
+      const tone = post.kind === "sop_link" ? "sop" : category === "Jadwal" ? "schedule" : category === "Pengumuman" ? "announcement" : "other";
+      const preview = post.kind === "sop_link" ? "Buka panduan SOP" : String(post.body || "").replace(/\s+/g, " ").trim();
+      host.innerHTML = '<div class="phase1-info-carousel phase1-dashboard-info-carousel" id="phase1InfoStack" aria-label="Info Madrasah"><div class="phase1-dashboard-info-current"><button type="button" class="phase1-info-card phase1-dashboard-info-card tone-' + tone + '" data-p1-action="openInfoCard" data-id="' + esc(post.id) + '" aria-label="Baca ' + esc(category) + ': ' + esc(post.title) + '"><span class="phase1-info-card-kicker">' + esc(category) + (post.pinned ? ' · DISEMATKAN' : "") + '</span><strong>' + esc(post.title) + '</strong><span class="phase1-info-card-excerpt">' + esc(preview || "Buka untuk membaca selengkapnya") + '</span></button></div><div class="phase1-info-carousel-controls"><button type="button" class="phase1-carousel-arrow" data-p1-action="previousInfoCard" aria-label="Info sebelumnya" ' + (rows.length < 2 ? "disabled" : "") + '>‹</button><span class="phase1-info-count" aria-live="off">' + (phase1InfoIndex + 1) + ' / ' + rows.length + '</span><button type="button" class="phase1-carousel-arrow" data-p1-action="nextInfoCard" aria-label="Info berikutnya" ' + (rows.length < 2 ? "disabled" : "") + '>›</button></div></div>';
+      phase1AttachInfoCarouselEvents();
+      return;
     }
     const available = rows.length ? Array.from({ length: Math.min(3, rows.length) }, function (_, index) { return rows[(phase1InfoIndex + index) % rows.length]; }) : [];
     host.innerHTML = rows.length
@@ -702,7 +714,7 @@
   }
 
   function phase1DashboardInfoMarkup() {
-    return '<section class="phase1-dashboard-info-board"><div class="phase1-dashboard-info-head"><div><span class="eyebrow">INFO MADRASAH</span><h2>Pengumuman dan informasi</h2><p>Geser kartu atau gunakan tombol untuk melihat informasi lainnya.</p></div><button type="button" class="btn secondary small" data-view="info">Buka pusat informasi</button></div><div id="phase1DashboardInfoPostList" class="phase1-info-post-list" aria-live="polite"></div></section>';
+    return '<section class="phase1-dashboard-info-board" aria-labelledby="phase1DashboardInfoHeading"><div class="phase1-dashboard-info-head"><h2 id="phase1DashboardInfoHeading">Info Madrasah</h2><button type="button" class="btn secondary small" data-view="info">Semua info</button></div><div id="phase1DashboardInfoPostList" class="phase1-info-post-list" aria-live="polite"></div></section>';
   }
 
   function phase1RenderDashboardInfo() {
@@ -714,12 +726,16 @@
       return heading && heading.textContent.trim() === "Transparansi laporan";
     });
     if (transparency) {
-      transparency.outerHTML = phase1DashboardInfoMarkup();
-      inserted = true;
+      const stats = content.querySelector(".grid.stats");
+      transparency.remove();
+      if (stats) {
+        stats.insertAdjacentHTML("afterend", phase1DashboardInfoMarkup());
+        inserted = true;
+      }
     } else {
-      const citizenCtas = content.querySelector(".citizen-home-ctas");
-      if (citizenCtas) {
-        citizenCtas.insertAdjacentHTML("afterend", phase1DashboardInfoMarkup());
+      const citizenLatest = content.querySelector(".citizen-latest-card");
+      if (citizenLatest) {
+        citizenLatest.insertAdjacentHTML("afterend", phase1DashboardInfoMarkup());
         inserted = true;
       }
     }
@@ -868,7 +884,7 @@
     if (phase1SopLoading && !phase1SopLoadedAt) return html + '<div class="empty"><strong>Memuat katalog SOP…</strong></div>';
     if (isManager()) html += '<section class="card phase1-sop-create-card"><h2>Tambah judul SOP</h2><form id="phase1SopCreateForm"><label class="field"><span class="field-label">Judul</span><input name="title" maxlength="120" required placeholder="Contoh: SOP Peminjaman Sarana"></label><label class="field"><span class="field-label">Keterangan (opsional)</span><textarea name="description" maxlength="1000" placeholder="Ringkasan singkat isi panduan"></textarea></label><button type="submit" class="btn">Buat SOP</button><p class="small-note" role="status" aria-live="polite">' + esc(phase1SopMessage) + '</p></form></section>';
     const docs = phase1SopDocuments.filter(function (item) { return item.active || isManager(); });
-    html += docs.length ? '<section class="phase1-sop-grid" aria-label="Daftar SOP">' + docs.map(phase1SopDocumentMarkup).join("") + '</section>' : '<div class="empty"><div class="empty-ico">▧</div><strong>Belum ada SOP</strong><span>' + (isManager() ? 'Tambahkan judul SOP, lalu unggah satu atau beberapa file.' : 'Panduan madrasah akan ditampilkan di sini setelah Admin menambahkannya.') + '</span></div>';
+    html += docs.length ? '<section class="phase1-sop-grid" aria-label="Daftar SOP">' + docs.map(phase1SopDocumentMarkup).join("") + '</section>' : '<section class="phase1-sop-empty" aria-label="Katalog SOP kosong"><span class="phase1-sop-empty-icon" aria-hidden="true">▧</span><strong>Belum ada SOP</strong><span>' + (isManager() ? 'Tambahkan judul SOP, lalu unggah satu atau beberapa file.' : 'Panduan madrasah akan ditampilkan di sini setelah Admin menambahkannya.') + '</span><small>Contoh: SOP Peminjaman Sarana</small></section>';
     return html;
   }
 

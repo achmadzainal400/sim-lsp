@@ -266,3 +266,52 @@
 .phase1-info-section-tabs button[aria-current="page"]{background:#fff;color:var(--teal-dark);box-shadow:0 2px 7px rgba(22,49,61,.1)}
 .phase1-info-section-tabs button:focus-visible{outline:3px solid #148b8140;outline-offset:2px}
 @media(max-width:520px){.phase1-info-section-tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%;gap:4px}.phase1-info-section-tabs button{min-width:0;padding-inline:8px;font-size:12px}}
+
+/* Info cards use category color as a small cue, keeping the content readable. */
+.phase1-info-card.tone-announcement{background:linear-gradient(145deg,#fffdf8 0%,#fff3df 100%);border-color:#f0ddba}
+.phase1-info-card.tone-schedule{background:linear-gradient(145deg,#f8fbff 0%,#eaf3ff 100%);border-color:#cfdef3}
+.phase1-info-card.tone-sop{background:linear-gradient(145deg,#f7fcfa 0%,#e4f4ee 100%);border-color:#c8e4d9}
+.phase1-info-card.tone-other{background:linear-gradient(145deg,#fbfaff 0%,#f0efff 100%);border-color:#dcd9f4}
+.phase1-info-card-kicker{display:inline-flex;align-items:center;min-height:25px;padding:4px 9px;border-radius:999px;background:#0d6259;color:#fff;font-size:9px;letter-spacing:.06em}
+.phase1-info-card.tone-announcement .phase1-info-card-kicker{background:#8a4e08}
+.phase1-info-card.tone-schedule .phase1-info-card-kicker{background:#244f89}
+.phase1-info-card.tone-other .phase1-info-card-kicker{background:#4d4585}
+.phase1-info-card>strong{display:-webkit-box;max-height:2.4em;overflow:hidden;-webkit-box-orient:vertical;-webkit-line-clamp:2}
+
+.phase1-dashboard-info-board{padding:10px 12px 11px}
+.phase1-dashboard-info-head{align-items:center}
+.phase1-dashboard-info-head h2{margin:0;font-size:14px}
+.phase1-dashboard-info-head .btn{min-height:40px}
+.phase1-dashboard-info-board .phase1-info-post-list{padding:8px 0 0}
+.phase1-dashboard-info-carousel{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:9px;width:100%;max-width:none}
+.phase1-dashboard-info-current{min-width:0}
+.phase1-dashboard-info-card{display:grid;min-width:0;min-height:0;width:100%;gap:4px;padding:8px 10px;border-radius:12px;box-shadow:none}
+.phase1-dashboard-info-card:hover{box-shadow:0 4px 12px #123d3810}
+.phase1-dashboard-info-card .phase1-info-card-kicker{min-height:20px;padding:2px 7px;font-size:8px}
+.phase1-dashboard-info-card>strong{font-size:13px;line-height:1.25;letter-spacing:0}
+.phase1-dashboard-info-card .phase1-info-card-excerpt{display:block;max-height:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;line-height:1.35}
+.phase1-dashboard-info-carousel .phase1-info-carousel-controls{gap:4px;margin:0}
+.phase1-dashboard-info-carousel .phase1-carousel-arrow{width:44px;height:44px;box-shadow:none}
+.phase1-dashboard-info-carousel .phase1-info-count{min-width:36px;font-size:9px}
+.phase1-dashboard-info-board .empty{padding:10px 4px;text-align:left}
+.phase1-dashboard-info-board .empty-ico{display:none}
+.phase1-sop-empty{display:grid;justify-items:center;gap:6px;min-height:180px;padding:26px 18px;border:1px dashed #c9ddd7;border-radius:16px;background:linear-gradient(145deg,#f7fcfa,#eef7f4);text-align:center;color:var(--muted)}
+.phase1-sop-empty-icon{display:grid;place-items:center;width:46px;height:46px;margin-bottom:3px;border-radius:14px;background:#dcefe9;color:#0d706a;font-size:23px}
+.phase1-sop-empty strong{color:var(--ink);font-size:15px}
+.phase1-sop-empty>span:not(.phase1-sop-empty-icon){max-width:430px;font-size:12px;line-height:1.5}
+.phase1-sop-empty small{margin-top:2px;padding:5px 9px;border-radius:999px;background:#fff;color:#0d6259;font-size:10px;font-weight:750}
+
+@media(max-width:760px){
+  .phase1-dashboard-info-board{padding:9px 10px 10px}
+  .phase1-dashboard-info-board .phase1-info-post-list{padding-top:7px}
+  .phase1-comment-avatar{width:32px;height:32px}
+}
+@media(max-width:520px){
+  .phase1-dashboard-info-head h2{font-size:13px}
+  .phase1-dashboard-info-head .btn{min-height:40px;padding:6px 9px;font-size:10px}
+  .phase1-dashboard-info-carousel{gap:6px}
+  .phase1-dashboard-info-card{padding:8px}
+  .phase1-dashboard-info-card>strong{font-size:12px}
+  .phase1-dashboard-info-carousel .phase1-carousel-arrow{width:44px;height:44px}
+  .phase1-sop-empty{min-height:160px;padding:22px 14px}
+}
