@@ -38,6 +38,8 @@
   let phase1AssignableLoading = false;
   let phase1AssignableError = "";
   let phase1SelectedExecutorIds = new Set();
+  let phase1ResponseSelectedIds = new Set();
+  let phase1PendingWorkPhotoReportId = "";
   let phase1Notifications = [];
   let phase1UnreadCount = 0;
   let phase1NotificationError = "";
@@ -294,7 +296,8 @@
     phase1PatchAssignmentChoices();
   }
 
-  function phase1AssigneeRows(selectedIds, search) {
+  function phase1AssigneeRows(selectedIds, search, fieldName) {
+    const inputName = fieldName || "executorIds";
     const needle = String(search || "").trim().toLocaleLowerCase("id-ID");
     if (phase1AssignableLoading && !phase1AssignableLoaded) return '<p class="small-note">Memuat daftar akun…</p>';
     if (phase1AssignableError) return '<p class="phase1-inline-error">' + esc(phase1AssignableError) + ' <button type="button" class="btn secondary small" data-action="reloadAssignees">Muat ulang</button></p>';
@@ -306,7 +309,7 @@
       const checked = selectedIds.has(String(user.profile_id));
       const unit = user.unit ? " · " + user.unit : " · Unit belum tercatat";
       const role = user.role === "sarpras_admin" ? "Sarpras/Admin" : "Warga Madrasah";
-      return '<label class="phase1-assignee-option"><input type="checkbox" name="executorIds" value="' + esc(user.profile_id) + '" ' + (checked ? "checked" : "") + '><span>' + phase1AvatarMarkup(user.avatar_path, user.display_name || user.username, "phase1-assignee-avatar") + '<span class="phase1-assignee-text"><strong>' + esc(user.display_name || user.username) + '</strong><small>@' + esc(user.username) + unit + '</small><small>' + esc(role) + '</small></span></span></label>';
+      return '<label class="phase1-assignee-option"><input type="checkbox" name="' + esc(inputName) + '" value="' + esc(user.profile_id) + '" ' + (checked ? "checked" : "") + '><span>' + phase1AvatarMarkup(user.avatar_path, user.display_name || user.username, "phase1-assignee-avatar") + '<span class="phase1-assignee-text"><strong>' + esc(user.display_name || user.username) + '</strong><small>@' + esc(user.username) + unit + '</small><small>' + esc(role) + '</small></span></span></label>';
     }).join("");
   }
 
@@ -323,19 +326,36 @@
 
   function phase1PatchAssignmentChoices() {
     const list = document.getElementById("phase1AssigneeList");
-    if (!list) return;
     const report = openReportId && getReport(openReportId);
-    const selected = new Set(phase1SelectedExecutorIds);
-    Array.from(list.querySelectorAll('input[name="executorIds"]:checked')).forEach(function (input) { selected.add(input.value); });
-    phase1SelectedExecutorIds = selected;
-    if (report && Array.isArray(report.executorIds) && !selected.size) report.executorIds.forEach(function (id) { phase1SelectedExecutorIds.add(String(id)); });
-    const search = document.getElementById("phase1AssigneeSearch");
-    list.innerHTML = phase1AssigneeRows(selected, search && search.value);
-    void phase1HydrateAvatarImages(list);
-    const button = document.querySelector('#modalBody [data-action="assign"]');
-    if (button) button.disabled = !phase1AssignableLoaded || !!phase1AssignableError;
-    const count = document.getElementById("phase1AssigneeCount");
-    if (count) count.textContent = selected.size + ' akun dipilih. Pilih minimal satu akun.';
+    if (list) {
+      const selected = new Set(phase1SelectedExecutorIds);
+      Array.from(list.querySelectorAll('input[name="executorIds"]:checked')).forEach(function (input) { selected.add(input.value); });
+      phase1SelectedExecutorIds = selected;
+      if (report && Array.isArray(report.executorIds) && !selected.size) report.executorIds.forEach(function (id) { phase1SelectedExecutorIds.add(String(id)); });
+      const search = document.getElementById("phase1AssigneeSearch");
+      list.innerHTML = phase1AssigneeRows(selected, search && search.value);
+      void phase1HydrateAvatarImages(list);
+      const button = document.querySelector('#modalBody [data-action="assign"]');
+      if (button) button.disabled = !phase1AssignableLoaded || !!phase1AssignableError;
+      const count = document.getElementById("phase1AssigneeCount");
+      if (count) count.textContent = selected.size + ' akun dipilih. Pilih minimal satu akun.';
+    }
+    const responseList = document.getElementById("phase1ResponseAssigneeList");
+    if (responseList) {
+      const selected = new Set(phase1ResponseSelectedIds);
+      Array.from(responseList.querySelectorAll('input[name="phase1ResponseExecutorIds"]:checked')).forEach(function (input) { selected.add(input.value); });
+      phase1ResponseSelectedIds = selected;
+      if (report && Array.isArray(report.executorIds) && !selected.size) report.executorIds.forEach(function (id) { phase1ResponseSelectedIds.add(String(id)); });
+      const search = document.getElementById("phase1ResponseAssigneeSearch");
+      responseList.innerHTML = phase1AssigneeRows(selected, search && search.value, "phase1ResponseExecutorIds");
+      void phase1HydrateAvatarImages(responseList);
+      const count = document.getElementById("phase1ResponseAssigneeCount");
+      if (count) count.textContent = selected.size ? selected.size + " akun dipilih." : "Pilih minimal satu akun aktif.";
+      const summary = document.querySelector("#phase1ResponseAssigneePicker summary");
+      if (summary) summary.textContent = selected.size ? selected.size + " akun dipilih" : "Pilih akun pelaksana";
+      const button = document.querySelector('#phase1ResponseForm button[type="submit"]');
+      if (button) button.disabled = !phase1AssignableLoaded || !!phase1AssignableError || !selected.size;
+    }
   }
 
   function phase1CanViewComments(report) {
@@ -411,14 +431,14 @@
       return;
     }
     const report = getReport(actionElement.getAttribute("data-id"));
-    if (!report) return;
+    if (!report) return false;
     const ids = Array.from(phase1SelectedExecutorIds);
     const chosen = ids.map(function (id) {
       return phase1AssignableUsers.find(function (user) { return String(user.profile_id) === String(id); });
     }).filter(Boolean);
     if (!chosen.length || chosen.length !== ids.length) {
       toast("Pilih minimal satu akun aktif dari daftar penanggung jawab.");
-      return;
+      return false;
     }
     const original = JSON.parse(JSON.stringify(report));
     const oldStatus = String(report.status || "");
@@ -426,6 +446,8 @@
     report.executorIds = chosen.map(function (user) { return String(user.profile_id); });
     report.pj = names[0];
     report.executor = names.join(", ");
+    const targetDate = actionElement.getAttribute("data-target-date");
+    if (targetDate !== null) report.targetDate = targetDate;
     if (oldStatus === "ANTREAN") report.status = "DITUGASKAN";
     report.updatedAt = nowIso();
     activity(report, oldStatus === "ANTREAN" ? "Penanggung jawab ditetapkan: " + names.join(", ") + "." : "Penanggung jawab diperbarui: " + names.join(", ") + ".", true);
@@ -436,7 +458,7 @@
     if (!saveDb()) {
       Object.keys(report).forEach(function (key) { delete report[key]; });
       Object.assign(report, original);
-      return;
+      return false;
     }
     clearTimeout(sharedSyncTimer);
     sharedSyncQueued = true;
@@ -447,7 +469,7 @@
       saveLocalDb();
       toast("Penugasan belum tersinkron. Data tiket dipulihkan di perangkat ini.");
       refreshDetail();
-      return;
+      return false;
     }
     await refreshSharedData(true);
     await phase1RefreshNotifications();
@@ -455,6 +477,7 @@
     void notifyQueueCount();
     toast("Penugasan tersimpan untuk " + chosen.length + " akun.");
     refreshDetail();
+    return true;
   }
 
   function phase1ProfileCard() {
@@ -1470,23 +1493,314 @@
     return markup;
   };
 
+  function phase1ResponseStage(report) {
+    if (!isManager() || !report) return 0;
+    if (report.status === "BARU") return 1;
+    if (report.status === "ANTREAN") return 2;
+    if (["DITUGASKAN", "DALAM_PENGERJAAN", "MENUNGGU_VERIFIKASI"].includes(String(report.status || ""))) return 3;
+    return 0;
+  }
+
+  function phase1ResponseAssigneePicker(report) {
+    phase1ResponseSelectedIds = new Set(Array.isArray(report.executorIds) ? report.executorIds.map(String) : []);
+    const loadingNote = phase1AssignableLoading ? "Memuat akun aktif…" : "Pilih satu atau beberapa akun yang terdaftar. Nama, username, dan unit ditampilkan.";
+    const submitDisabled = !phase1AssignableLoaded || !!phase1AssignableError || !phase1ResponseSelectedIds.size;
+    return '<details class="phase1-response-assignee-picker" id="phase1ResponseAssigneePicker"><summary>' + (phase1ResponseSelectedIds.size ? phase1ResponseSelectedIds.size + " akun dipilih" : "Pilih akun pelaksana") + '</summary><div class="phase1-response-assignee-body"><p class="small-note">' + esc(loadingNote) + '</p><label class="phase1-assignee-search"><span class="sr-only">Cari akun pelaksana</span><input id="phase1ResponseAssigneeSearch" type="search" placeholder="Cari nama, username, atau unit…" autocomplete="off"></label><div id="phase1ResponseAssigneeList" class="phase1-assignee-list" aria-label="Daftar akun pelaksana">' + phase1AssigneeRows(phase1ResponseSelectedIds, "", "phase1ResponseExecutorIds") + '</div><p id="phase1ResponseAssigneeCount" class="small-note">' + (phase1ResponseSelectedIds.size ? phase1ResponseSelectedIds.size + " akun dipilih." : "Pilih minimal satu akun aktif.") + '</p></div></details><div class="field"><label for="phase1ResponseTargetDate">Target penyelesaian <span class="small-note">(opsional)</span></label><input id="phase1ResponseTargetDate" type="date" value="' + esc(String(report.targetDate || '').slice(0, 10)) + '"></div><span class="phase1-response-submit-state" data-submit-disabled="' + (submitDisabled ? "true" : "false") + '"></span>';
+  }
+
+  function phase1ResponseDialogMarkup(report, stage) {
+    const id = esc(report.id);
+    let fields = "";
+    let title = "";
+    let submitLabel = "Simpan";
+    if (stage === 1) {
+      title = "Tinjau laporan";
+      fields = '<p class="phase1-response-lead">Pilih keputusan awal. Jika ditunda atau ditolak, alasan wajib disampaikan kepada pelapor.</p><div class="field"><label for="phase1ResponseDecision">Keputusan</label><select id="phase1ResponseDecision" name="decision"><option value="verify">Terverifikasi</option><option value="defer">Ditunda</option><option value="reject">Ditolak</option></select></div><div class="field" id="phase1ResponsePriorityField"><label for="phase1ResponsePriority">Prioritas</label><select id="phase1ResponsePriority" name="priority"><option value="NORMAL" ' + (report.priority === "NORMAL" ? "selected" : "") + '>Normal</option><option value="RENDAH" ' + (report.priority === "RENDAH" ? "selected" : "") + '>Rendah</option><option value="TINGGI" ' + (report.priority === "TINGGI" ? "selected" : "") + '>Tinggi</option><option value="KRITIS" ' + (report.priority === "KRITIS" ? "selected" : "") + '>Kritis</option></select></div><div class="field phase1-response-reason" id="phase1ResponseReasonField" hidden><label for="phase1ResponseReason">Alasan <span aria-hidden="true">*</span></label><textarea id="phase1ResponseReason" name="reason" maxlength="1000" placeholder="Jelaskan kepada pelapor alasan penundaan atau penolakan."></textarea></div>';
+      submitLabel = "Simpan keputusan";
+    } else if (stage === 2) {
+      title = "Tugaskan pekerjaan";
+      fields = '<p class="phase1-response-lead">Tetapkan akun pelaksana sebelum laporan diteruskan.</p>' + phase1ResponseAssigneePicker(report);
+      submitLabel = "Simpan penugasan";
+    } else {
+      title = "Catat hasil pekerjaan";
+      const existingWorkPhotos = (Array.isArray(report.photos) ? report.photos : []).filter(function (photo) { return photo && photo.kind === "hasil"; }).length;
+      const repairNeedsPhoto = String(report.category || "").toLocaleLowerCase("id-ID") === "perbaikan";
+      fields = '<p class="phase1-response-lead">Catat tindakan dan biaya sebelum menandai tiket selesai.</p><div class="field"><label for="phase1ResponseResult">Hasil / tindakan <span aria-hidden="true">*</span></label><textarea id="phase1ResponseResult" name="result" maxlength="1800" required placeholder="Tuliskan tindakan dan hasil yang sudah diperiksa.">' + esc(report.result || "") + '</textarea></div><div class="form-grid phase1-response-costs"><div class="field"><label for="phase1ResponseMaterial">Biaya bahan (Rp)</label><input id="phase1ResponseMaterial" name="materialCost" type="number" min="0" step="1" value="' + esc(Number(report.materialCost || 0)) + '"></div><div class="field"><label for="phase1ResponseService">Biaya jasa (Rp)</label><input id="phase1ResponseService" name="serviceCost" type="number" min="0" step="1" value="' + esc(Number(report.serviceCost || 0)) + '"></div></div>' + reportAssetUsageFields(report) + '<div class="field phase1-response-photos"><label for="workPhotos">Foto hasil ' + (repairNeedsPhoto ? '<span class="badge danger">Wajib untuk Perbaikan</span>' : '<span class="small-note">(opsional)</span>') + '</label><label class="photo-pick-button">📷 Pilih / Ambil foto hasil<input id="workPhotos" type="file" accept="image/*" multiple aria-describedby="phase1ResponsePhotoHelp"></label><p class="small-note" id="phase1ResponsePhotoHelp">Maksimal 3 foto. ' + (existingWorkPhotos ? existingWorkPhotos + " foto hasil sudah tersimpan." : "") + (repairNeedsPhoto ? " Unggah minimal satu foto hasil untuk laporan Perbaikan." : "") + '</p><div id="workPhotoHelper" class="helper">' + existingWorkPhotos + '/3 foto tersimpan.</div><div id="workPhotoPreview" class="photo-preview-grid"></div><button type="button" data-action="saveWorkPhotos" data-id="' + id + '" hidden></button></div>';
+      submitLabel = "Simpan & tandai selesai";
+    }
+    const disabled = stage === 2 && (!phase1AssignableLoaded || !!phase1AssignableError || !phase1ResponseSelectedIds.size);
+    return '<dialog class="phase1-response-dialog" id="phase1ResponseDialog" aria-labelledby="phase1ResponseDialogTitle" data-stage="' + stage + '"><div class="phase1-response-dialog-head"><div><span class="phase1-response-eyebrow">LANGKAH ' + stage + ' DARI 3</span><h2 id="phase1ResponseDialogTitle">' + title + '</h2></div><button type="button" class="icon-btn" data-p1-action="closeResponse" aria-label="Tutup">×</button></div><form id="phase1ResponseForm" data-report-id="' + id + '" data-stage="' + stage + '"><div class="phase1-response-dialog-body">' + fields + '</div><div class="phase1-response-dialog-foot"><button type="button" class="btn secondary" data-p1-action="closeResponse">Batal</button><button type="submit" class="btn" ' + (disabled ? "disabled" : "") + '>' + submitLabel + '</button></div></form></dialog>';
+  }
+
+  function phase1ResponsePanel(report, stage, advancedMarkup) {
+    const labels = ["Verifikasi", "Penugasan", "Penyelesaian"];
+    const stateLabels = ["Meninjau laporan", "Pilih pelaksana", "Catat hasil pekerjaan"];
+    const currentStatus = STATUS[report.status] || "Dalam penanganan";
+    const actionLabel = stage === 1 ? "Tanggapi laporan" : stage === 2 ? "Tugaskan pekerjaan" : "Catat hasil pekerjaan";
+    const steps = labels.map(function (label, index) {
+      const number = index + 1;
+      const state = number < stage ? "is-done" : number === stage ? "is-current" : "";
+      return '<li class="' + state + '" ' + (number === stage ? 'aria-current="step"' : "") + '><span>' + number + '</span><small>' + label + '</small></li>';
+    }).join("");
+    const fullForm = advancedMarkup ? '<details class="phase1-legacy-actions"><summary>Form tindakan lengkap</summary><div class="phase1-legacy-actions-body">' + advancedMarkup + '</div></details>' : "";
+    return '<section class="phase1-response-flow" id="phase1ResponsePanel"><div class="phase1-response-heading"><div><span class="phase1-response-eyebrow">' + esc(currentStatus.toLocaleUpperCase("id-ID")) + '</span><h3>' + esc(stateLabels[stage - 1]) + '</h3><p>' + (stage === 1 ? "Periksa laporan, lalu verifikasi, tunda, atau tolak dengan alasan." : stage === 2 ? "Pilih pelaksana dari akun aktif yang terdaftar." : "Catat hasil dan foto pekerjaan sebelum tiket ditutup.") + '</p></div></div><ol class="phase1-response-steps" aria-label="Tahapan penanganan laporan">' + steps + '</ol><button type="button" class="btn" data-p1-action="openResponse" data-id="' + esc(report.id) + '">' + actionLabel + ' <span aria-hidden="true">→</span></button></section>' + phase1ResponseDialogMarkup(report, stage) + fullForm;
+  }
+
+  function phase1OpenResponseDialog(reportId) {
+    const report = getReport(reportId);
+    const dialog = document.getElementById("phase1ResponseDialog");
+    const panel = document.getElementById("phase1ResponsePanel");
+    if (!isManager() || !report || !dialog || !phase1ResponseStage(report)) return;
+    if (phase1ResponseStage(report) === 3) {
+      if (phase1PendingWorkPhotoReportId && phase1PendingWorkPhotoReportId !== String(report.id) && pendingWorkPhotos.length) {
+        pendingWorkPhotos.forEach(function (photo) { if (photo.previewUrl) URL.revokeObjectURL(photo.previewUrl); });
+        pendingWorkPhotos = [];
+        toast("Foto hasil yang belum disimpan untuk tiket sebelumnya dibuang.");
+      }
+      phase1PendingWorkPhotoReportId = String(report.id);
+      workPhotoPreviewHtml();
+    }
+    if (panel) panel.hidden = true;
+    if (!dialog.open) dialog.showModal();
+    const closePanel = function () { if (panel) panel.hidden = false; };
+    dialog.addEventListener("close", closePanel, { once: true });
+    dialog.onclick = function (event) {
+      if (event.target === dialog) dialog.close();
+    };
+    const first = dialog.querySelector('select, input:not([type="hidden"]), textarea, button');
+    if (first) first.focus({ preventScroll: true });
+  }
+
+  function phase1CloseResponseDialog() {
+    const dialog = document.getElementById("phase1ResponseDialog");
+    const panel = document.getElementById("phase1ResponsePanel");
+    if (dialog && dialog.open) dialog.close();
+    if (panel) panel.hidden = false;
+    const trigger = document.querySelector('#phase1ResponsePanel [data-p1-action="openResponse"]');
+    if (trigger) trigger.focus({ preventScroll: true });
+  }
+
+  function phase1RestoreResponse(report, original, oldAssets, oldTransactions, oldExclusions) {
+    const current = getReport(original.id) || report;
+    Object.keys(current).forEach(function (key) { delete current[key]; });
+    Object.assign(current, original);
+    db.assets = oldAssets;
+    db.assetTransactions = oldTransactions;
+    db.assetReportExclusions = oldExclusions;
+    saveLocalDb();
+  }
+
+  async function phase1PersistResponse(report, original, oldAssets, oldTransactions, oldExclusions, successMessage) {
+    if (!saveDb()) {
+      phase1RestoreResponse(report, original, oldAssets, oldTransactions, oldExclusions);
+      return false;
+    }
+    let committed = true;
+    if (sharedDataReady) {
+      clearTimeout(sharedSyncTimer);
+      sharedSyncQueued = true;
+      committed = await syncSharedData();
+    }
+    if (!committed) {
+      phase1RestoreResponse(report, original, oldAssets, oldTransactions, oldExclusions);
+      toast("Perubahan belum tersinkron. Data laporan dipulihkan di perangkat ini.");
+      phase1CloseResponseDialog();
+      refreshDetail();
+      return false;
+    }
+    if (sharedDataReady) await refreshSharedData(true);
+    const saved = getReport(original.id) || report;
+    if (String(saved.status || "") !== String(original.status || "")) void notifyReportStatus(saved);
+    await phase1RefreshNotifications();
+    void notifyQueueCount();
+    toast(successMessage);
+    phase1CloseResponseDialog();
+    refreshDetail();
+    return true;
+  }
+
+  async function phase1SubmitResponse(form) {
+    if (!isManager()) return;
+    const reportId = form.getAttribute("data-report-id");
+    const stage = Number(form.getAttribute("data-stage"));
+    const report = getReport(reportId);
+    if (!report || phase1ResponseStage(report) !== stage) {
+      toast("Status tiket berubah. Muat ulang detail sebelum melanjutkan.");
+      phase1CloseResponseDialog();
+      refreshDetail();
+      return;
+    }
+    const button = form.querySelector('button[type="submit"]');
+    if (button) { button.disabled = true; button.textContent = "Menyimpan…"; }
+    if (stage === 2) {
+      const selected = new Set(phase1ResponseSelectedIds);
+      Array.from(form.querySelectorAll('input[name="phase1ResponseExecutorIds"]:checked')).forEach(function (input) { selected.add(input.value); });
+      if (!selected.size) {
+        toast("Pilih minimal satu akun pelaksana yang terdaftar.");
+        if (button) { button.disabled = false; button.textContent = "Simpan penugasan"; }
+        return;
+      }
+      phase1SelectedExecutorIds = selected;
+      await phase1AssignReport({
+        getAttribute: function (name) {
+          if (name === "data-id") return reportId;
+          if (name === "data-target-date") return (document.getElementById("phase1ResponseTargetDate") || {}).value || "";
+          return null;
+        }
+      });
+      if (button && document.getElementById("phase1ResponseForm") === form) {
+        button.disabled = !phase1AssignableLoaded || !!phase1AssignableError || !phase1ResponseSelectedIds.size;
+        button.textContent = "Simpan penugasan";
+      }
+      return;
+    }
+
+    const original = JSON.parse(JSON.stringify(report));
+    const oldAssets = db.assets.map(function (asset) { return Object.assign({}, asset); });
+    const oldTransactions = db.assetTransactions.slice();
+    const oldExclusions = (db.assetReportExclusions || []).slice();
+    const previousStatus = String(report.status || "");
+    if (stage === 1) {
+      const decision = (document.getElementById("phase1ResponseDecision") || {}).value || "verify";
+      const reason = ((document.getElementById("phase1ResponseReason") || {}).value || "").trim();
+      if (decision !== "verify" && !reason) {
+        toast("Alasan wajib diisi jika laporan ditunda atau ditolak.");
+        if (button) { button.disabled = false; button.textContent = "Simpan keputusan"; }
+        const reasonField = document.getElementById("phase1ResponseReason");
+        if (reasonField) reasonField.focus();
+        return;
+      }
+      if (decision === "verify") {
+        report.priority = (document.getElementById("phase1ResponsePriority") || {}).value || "NORMAL";
+        report.needsApproval = false;
+        report.approvalStatus = "TIDAK_DIPERLUKAN";
+        report.status = "ANTREAN";
+        report.deferReason = "";
+        activity(report, "Laporan diverifikasi dan masuk antrean penanganan.", true);
+      } else if (decision === "defer") {
+        report.previousStatus = previousStatus;
+        report.deferReason = reason;
+        report.status = "DITUNDA";
+        activity(report, "Laporan ditunda. Alasan: " + reason, true);
+      } else {
+        report.deferReason = reason;
+        report.status = "DITOLAK";
+        activity(report, "Laporan ditolak. Alasan: " + reason, true);
+      }
+    } else {
+      const result = ((document.getElementById("phase1ResponseResult") || {}).value || "").trim();
+      const materialCost = Number((document.getElementById("phase1ResponseMaterial") || {}).value || 0);
+      const serviceCost = Number((document.getElementById("phase1ResponseService") || {}).value || 0);
+      const existingWorkPhotos = (Array.isArray(report.photos) ? report.photos : []).filter(function (photo) { return photo && photo.kind === "hasil"; }).length;
+      if (!result) {
+        toast("Catat hasil atau tindakan sebelum menyelesaikan tiket.");
+        if (button) { button.disabled = false; button.textContent = "Simpan & tandai selesai"; }
+        (document.getElementById("phase1ResponseResult") || {}).focus?.();
+        return;
+      }
+      if (!Number.isFinite(materialCost) || materialCost < 0 || !Number.isFinite(serviceCost) || serviceCost < 0) {
+        toast("Biaya harus berupa angka nol atau lebih.");
+        if (button) { button.disabled = false; button.textContent = "Simpan & tandai selesai"; }
+        return;
+      }
+      if (String(report.category || "").toLocaleLowerCase("id-ID") === "perbaikan" && !existingWorkPhotos && !pendingWorkPhotos.length) {
+        toast("Unggah minimal satu foto hasil untuk laporan Perbaikan.");
+        if (button) { button.disabled = false; button.textContent = "Simpan & tandai selesai"; }
+        const photoPicker = document.getElementById("workPhotos");
+        if (photoPicker) photoPicker.focus();
+        return;
+      }
+      const usageSelect = document.getElementById("assetUseId");
+      const usageQuantity = document.getElementById("assetUseQuantity");
+      const usageNote = document.getElementById("assetUseNote");
+      if (usageSelect && !saveReportAssetUsage(report, usageSelect.value, Number((usageQuantity || {}).value || 0), ((usageNote || {}).value || "").trim())) {
+        if (button) { button.disabled = false; button.textContent = "Simpan & tandai selesai"; }
+        return;
+      }
+      if (isProcurementCategory(report.category) && (!String(report.object || "").trim() || Number(report.acquisitionQuantity || 0) <= 0 || !String(report.acquisitionUnit || "").trim())) {
+        phase1RestoreResponse(report, original, oldAssets, oldTransactions, oldExclusions);
+        toast("Lengkapi nama, jumlah, dan satuan barang di Edit semua data laporan sebelum menyelesaikan pengadaan.");
+        if (button) { button.disabled = false; button.textContent = "Simpan & tandai selesai"; }
+        return;
+      }
+      report.result = result;
+      report.materialCost = materialCost;
+      report.serviceCost = serviceCost;
+      if (!report.startedAt) report.startedAt = nowIso();
+      report.completedAt = nowIso();
+      report.status = "SELESAI";
+      if (isProcurementCategory(report.category) && !syncProcurementAsset(report)) {
+        phase1RestoreResponse(report, original, oldAssets, oldTransactions, oldExclusions);
+        toast("Stok pengadaan gagal dicatat. Periksa data barang dan stok yang sudah terpakai.");
+        if (button) { button.disabled = false; button.textContent = "Simpan & tandai selesai"; }
+        return;
+      }
+      if (pendingWorkPhotos.length && String(report.status || "") !== previousStatus) {
+        report.statusUpdatedAt = nowIso();
+        report.statusEventId = makeId();
+      }
+      activity(report, "Sarpras/Admin mencatat hasil pekerjaan dan menyelesaikan laporan.", true);
+      if (pendingWorkPhotos.length) {
+        if (!sharedDataReady) {
+          phase1RestoreResponse(report, original, oldAssets, oldTransactions, oldExclusions);
+          toast("Sambungkan data bersama sebelum mengunggah foto hasil.");
+          if (button) { button.disabled = false; button.textContent = "Simpan & tandai selesai"; }
+          return;
+        }
+        phase1CloseResponseDialog();
+        await saveWorkPhotos(reportId);
+        if (pendingWorkPhotos.length) {
+          phase1RestoreResponse(report, original, oldAssets, oldTransactions, oldExclusions);
+          phase1CloseResponseDialog();
+          phase1PendingWorkPhotoReportId = String(reportId);
+          refreshDetail();
+          return;
+        }
+        const saved = getReport(reportId) || report;
+        if (String(saved.status || "") !== previousStatus) void notifyReportStatus(saved);
+        await phase1RefreshNotifications();
+        void notifyQueueCount();
+        phase1PendingWorkPhotoReportId = "";
+        return;
+      }
+    }
+
+    if (String(report.status || "") !== previousStatus) {
+      report.statusUpdatedAt = nowIso();
+      report.statusEventId = makeId();
+    }
+    await phase1PersistResponse(report, original, oldAssets, oldTransactions, oldExclusions,
+      stage === 1 ? (report.status === "ANTREAN" ? "Laporan berhasil diverifikasi dan masuk antrean." : report.status === "DITUNDA" ? "Laporan ditunda; alasan sudah dicatat." : "Laporan ditolak; alasan sudah dicatat.") : "Hasil pekerjaan disimpan dan tiket ditandai selesai.");
+  }
+
+  const phase1BaseDetailActionForm = detailActionForm;
+  detailActionForm = function (report) {
+    let legacyMarkup = phase1BaseDetailActionForm(report);
+    if (isManager() && report.status === "ANTREAN") {
+      legacyMarkup = legacyMarkup.replace(/<div class="grid" style="grid-template-columns:1fr 1fr;gap:9px">[\s\S]*?<\/div>(?=<div class="action-row"><button class="btn small" data-action="assign")/, phase1AssignmentControl(report));
+      if (!phase1AssignableLoaded || phase1AssignableError) legacyMarkup = legacyMarkup.replace(/(<button class="btn small" data-action="assign" data-id="[^"]+")>/, "$1 disabled>");
+    }
+    const stage = phase1ResponseStage(report);
+    if (!stage) return legacyMarkup;
+    if (["DITUGASKAN", "DALAM_PENGERJAAN", "MENUNGGU_VERIFIKASI"].includes(String(report.status || ""))) legacyMarkup += phase1ExistingAssignmentPanel(report);
+    return phase1ResponsePanel(report, stage, legacyMarkup);
+  };
+
   const phase1BaseRenderDetail = renderDetail;
   renderDetail = function (report) {
     let markup = phase1BaseRenderDetail(report);
-    if (isManager() && report.status === "ANTREAN") {
-      markup = markup.replace(/<div class="grid" style="grid-template-columns:1fr 1fr;gap:9px">[\s\S]*?<\/div>(?=<div class="action-row"><button class="btn small" data-action="assign")/, phase1AssignmentControl(report));
-      if (!phase1AssignableLoaded || phase1AssignableError) markup = markup.replace(/(<button class="btn small" data-action="assign" data-id="[^"]+")>/, "$1 disabled>");
-    }
-    if (isManager() && ["DITUGASKAN", "DALAM_PENGERJAAN", "DITUNDA"].includes(String(report.status || ""))) markup += phase1ExistingAssignmentPanel(report);
+    if (isManager() && !phase1ResponseStage(report) && ["DITUGASKAN", "DALAM_PENGERJAAN", "MENUNGGU_VERIFIKASI", "DITUNDA"].includes(String(report.status || ""))) markup += phase1ExistingAssignmentPanel(report);
     markup += phase1CommentsMarkup(report);
     return markup;
   };
 
   const phase1BaseShowDetail = showDetail;
   showDetail = function (id) {
+    const responseDialog = document.getElementById("phase1ResponseDialog");
+    if (responseDialog && responseDialog.open) phase1CloseResponseDialog();
     phase1BaseShowDetail(id);
     const report = getReport(id);
-    if (report && isManager() && ["ANTREAN", "DITUGASKAN", "DALAM_PENGERJAAN", "DITUNDA"].includes(String(report.status || ""))) void phase1LoadAssignableUsers(false);
+    if (report && isManager() && ["ANTREAN", "DITUGASKAN", "DALAM_PENGERJAAN", "MENUNGGU_VERIFIKASI", "DITUNDA"].includes(String(report.status || ""))) void phase1LoadAssignableUsers(false);
     if (report && phase1CanViewComments(report)) void phase1LoadComments(id);
     void phase1HydrateAvatarImages(document.getElementById("modalBody"));
   };
@@ -1619,6 +1933,8 @@
       const actionName = p1Action.getAttribute("data-p1-action");
       const id = p1Action.getAttribute("data-id");
       if (actionName === "previousInfoCard") phase1MoveInfoCard(-1);
+      else if (actionName === "openResponse") phase1OpenResponseDialog(id);
+      else if (actionName === "closeResponse") phase1CloseResponseDialog();
       else if (actionName === "nextInfoCard") phase1MoveInfoCard(1);
       else if (actionName === "openInfoCard") void phase1OpenInfoCard(id);
       else if (actionName === "backToInfoCards") { phase1InfoDetailId = ""; phase1RenderInfoList(); }
@@ -1750,6 +2066,14 @@
         void phase1HydrateAvatarImages(list);
       }
     }
+    if (event.target.id === "phase1ResponseAssigneeSearch") {
+      const list = document.getElementById("phase1ResponseAssigneeList");
+      if (list) {
+        Array.from(list.querySelectorAll('input[name="phase1ResponseExecutorIds"]:checked')).forEach(function (input) { phase1ResponseSelectedIds.add(input.value); });
+        list.innerHTML = phase1AssigneeRows(phase1ResponseSelectedIds, event.target.value, "phase1ResponseExecutorIds");
+        void phase1HydrateAvatarImages(list);
+      }
+    }
     if (event.target.id === "phase1CommentText") {
       const count = document.getElementById("phase1CommentLength");
       if (count) count.textContent = String(event.target.value.length) + " / 800";
@@ -1762,11 +2086,31 @@
       else phase1SelectedExecutorIds.delete(event.target.value);
       const count = document.getElementById("phase1AssigneeCount");
       if (count) count.textContent = phase1SelectedExecutorIds.size + " akun dipilih. Pilih minimal satu akun.";
+    } else if (event.target.name === "phase1ResponseExecutorIds") {
+      if (event.target.checked) phase1ResponseSelectedIds.add(event.target.value);
+      else phase1ResponseSelectedIds.delete(event.target.value);
+      const count = document.getElementById("phase1ResponseAssigneeCount");
+      if (count) count.textContent = phase1ResponseSelectedIds.size ? phase1ResponseSelectedIds.size + " akun dipilih." : "Pilih minimal satu akun aktif.";
+      const summary = document.querySelector("#phase1ResponseAssigneePicker summary");
+      if (summary) summary.textContent = phase1ResponseSelectedIds.size ? phase1ResponseSelectedIds.size + " akun dipilih" : "Pilih akun pelaksana";
+      const button = document.querySelector('#phase1ResponseForm button[type="submit"]');
+      if (button) button.disabled = !phase1AssignableLoaded || !!phase1AssignableError || !phase1ResponseSelectedIds.size;
+    } else if (event.target.id === "phase1ResponseDecision") {
+      const isDecision = event.target.value !== "verify";
+      const reasonField = document.getElementById("phase1ResponseReasonField");
+      const reason = document.getElementById("phase1ResponseReason");
+      const priorityField = document.getElementById("phase1ResponsePriorityField");
+      if (reasonField) reasonField.hidden = !isDecision;
+      if (reason) reason.required = isDecision;
+      if (priorityField) priorityField.hidden = isDecision;
     }
   });
 
   document.getElementById("modalBody").addEventListener("submit", function (event) {
-    if (event.target.id === "phase1CommentForm") {
+    if (event.target.id === "phase1ResponseForm") {
+      event.preventDefault();
+      void phase1SubmitResponse(event.target);
+    } else if (event.target.id === "phase1CommentForm") {
       event.preventDefault();
       void phase1SendComment(event.target);
     }
