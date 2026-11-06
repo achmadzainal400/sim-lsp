@@ -358,16 +358,30 @@
     }
   }
 
+  function phase1CommentRoot(report) {
+    return report && report.mergedIntoReportId ? getReport(report.mergedIntoReportId) || report : report;
+  }
+
+  function phase1CommentMembers(report) {
+    const root = phase1CommentRoot(report);
+    if (!root) return [];
+    const childIds = Array.isArray(root.mergedReportIds) ? root.mergedReportIds : [];
+    return [root].concat(childIds.map(getReport).filter(Boolean));
+  }
+
   function phase1CanViewComments(report) {
     if (!appSession || !report) return false;
     const id = String(appSession.user.id || "");
-    const executors = Array.isArray(report.executorIds) ? report.executorIds.map(String) : [];
-    return isManager() || String(report.creatorProfileId || "") === id || executors.includes(id);
+    return isManager() || phase1CommentMembers(report).some(function (member) {
+      const executors = Array.isArray(member.executorIds) ? member.executorIds.map(String) : [];
+      return String(member.creatorProfileId || "") === id || executors.includes(id);
+    });
   }
 
   function phase1CommentsMarkup(report) {
     if (!phase1CanViewComments(report)) return "";
-    return '<section class="phase1-discussion" aria-labelledby="phase1DiscussionHeading"><div class="divider"></div><div class="phase1-discussion-head"><div><h3 id="phase1DiscussionHeading">Diskusi tiket</h3><p>Hanya pelapor, akun yang ditugaskan, dan Sarpras/Admin yang dapat membaca atau menulis.</p></div></div><div id="phase1CommentList" class="phase1-comment-list" aria-live="polite"><p class="small-note">Memuat komentar…</p></div><form id="phase1CommentForm" data-report-id="' + esc(report.id) + '" class="phase1-comment-form"><label for="phase1CommentText">Tulis komentar <span class="small-note">(maks. 800 karakter)</span></label><textarea id="phase1CommentText" name="text" maxlength="800" required placeholder="Tulis informasi yang berkaitan dengan penanganan tiket ini."></textarea><div class="phase1-comment-form-foot"><span id="phase1CommentLength" class="small-note">0 / 800</span><button class="btn small" type="submit">Kirim komentar</button></div></form></section>';
+    const root = phase1CommentRoot(report);
+    return '<section class="phase1-discussion" aria-labelledby="phase1DiscussionHeading"><div class="divider"></div><div class="phase1-discussion-head"><div><h3 id="phase1DiscussionHeading">Diskusi tiket</h3><p>Diskusi dibagikan kepada pelapor, akun yang ditugaskan, dan Sarpras/Admin pada seluruh tiket yang digabung.</p></div></div><div id="phase1CommentList" class="phase1-comment-list" aria-live="polite"><p class="small-note">Memuat komentar…</p></div><form id="phase1CommentForm" data-report-id="' + esc(root.id) + '" class="phase1-comment-form"><label for="phase1CommentText">Tulis komentar <span class="small-note">(maks. 800 karakter)</span></label><textarea id="phase1CommentText" name="text" maxlength="800" required placeholder="Tulis informasi yang berkaitan dengan penanganan tiket ini."></textarea><div class="phase1-comment-form-foot"><span id="phase1CommentLength" class="small-note">0 / 800</span><button class="btn small" type="submit">Kirim komentar</button></div></form></section>';
   }
 
   function phase1CommentMarkup(comment) {
@@ -376,7 +390,10 @@
 
   async function phase1LoadComments(reportId) {
     const list = document.getElementById("phase1CommentList");
-    if (!list || !phase1CanViewComments(getReport(reportId))) return;
+    const requested = getReport(reportId);
+    if (!list || !phase1CanViewComments(requested)) return;
+    const root = phase1CommentRoot(requested);
+    reportId = String(root.id);
     const result = await supabaseClient.from("simlsp_report_comments")
       .select("id,report_id,by_user_id,by,role,text,avatar_path,created_at")
       .eq("report_id", reportId)
@@ -432,6 +449,10 @@
     }
     const report = getReport(actionElement.getAttribute("data-id"));
     if (!report) return false;
+    if (report.mergedIntoReportId) {
+      toast("Penugasan dilakukan dari tiket induk " + (getReport(report.mergedIntoReportId) || {}).code + ".");
+      return false;
+    }
     const ids = Array.from(phase1SelectedExecutorIds);
     const chosen = ids.map(function (id) {
       return phase1AssignableUsers.find(function (user) { return String(user.profile_id) === String(id); });
@@ -455,6 +476,7 @@
       report.statusUpdatedAt = nowIso();
       report.statusEventId = makeId();
     }
+    syncMergedReportsFromParent(report);
     if (!saveDb()) {
       Object.keys(report).forEach(function (key) { delete report[key]; });
       Object.assign(report, original);
@@ -1591,6 +1613,11 @@
   }
 
   async function phase1PersistResponse(report, original, oldAssets, oldTransactions, oldExclusions, successMessage) {
+    if (report && report.mergedIntoReportId) {
+      toast("Tanggapi tiket induk agar seluruh pelapor menerima pembaruan.");
+      return false;
+    }
+    syncMergedReportsFromParent(report);
     if (!saveDb()) {
       phase1RestoreResponse(report, original, oldAssets, oldTransactions, oldExclusions);
       return false;
@@ -1789,7 +1816,7 @@
   const phase1BaseRenderDetail = renderDetail;
   renderDetail = function (report) {
     let markup = phase1BaseRenderDetail(report);
-    if (isManager() && !phase1ResponseStage(report) && ["DITUGASKAN", "DALAM_PENGERJAAN", "MENUNGGU_VERIFIKASI", "DITUNDA"].includes(String(report.status || ""))) markup += phase1ExistingAssignmentPanel(report);
+    if (isManager() && !report.mergedIntoReportId && !phase1ResponseStage(report) && ["DITUGASKAN", "DALAM_PENGERJAAN", "MENUNGGU_VERIFIKASI", "DITUNDA"].includes(String(report.status || ""))) markup += phase1ExistingAssignmentPanel(report);
     markup += phase1CommentsMarkup(report);
     return markup;
   };
@@ -2135,4 +2162,5 @@
     phase1StartNotificationPolling();
     if (isManager()) void phase1LoadAssignableUsers(false);
   }
+  window.phase1RefreshNotifications = phase1RefreshNotifications;
 })();
