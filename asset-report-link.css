@@ -1,0 +1,28 @@
+.report-related-asset{
+  border:1px solid #cfe6e2;
+  border-radius:12px;
+  padding:12px;
+  background:#f6fbfa;
+}
+.report-related-asset select{min-height:46px}
+.optional-label{
+  display:inline-flex;
+  margin-left:5px;
+  padding:2px 7px;
+  border-radius:999px;
+  background:#e8f2f0;
+  color:#39716b;
+  font-size:11px;
+  font-weight:750;
+  vertical-align:middle;
+}
+.related-asset-detail{
+  grid-column:1 / -1;
+  border-color:#b9dfd8;
+  background:#f5fbfa;
+}
+.related-asset-detail strong{color:#0a706a}
+@media (max-width:680px){
+  .report-related-asset{padding:11px}
+  .report-related-asset select{font-size:16px}
+}
