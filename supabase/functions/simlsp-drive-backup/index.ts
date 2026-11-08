@@ -91,11 +91,11 @@ async function requireAdmin(request: Request) {
   if (error || !data.user) throw new HttpError("Sesi login tidak valid. Silakan masuk kembali.", 401);
   const { data: profile, error: profileError } = await service
     .from("simlsp_profiles")
-    .select("role")
+    .select("role,is_system_owner")
     .eq("id", data.user.id)
     .maybeSingle();
   if (profileError || profile?.role !== "sarpras_admin") throw new HttpError("Hanya Sarpras/Admin yang dapat menggunakan Google Drive.", 403);
-  return { service, userId: data.user.id as string };
+  return { service, userId: data.user.id as string, isSystemOwner: profile.is_system_owner === true };
 }
 
 class HttpError extends Error {
@@ -456,6 +456,14 @@ async function uploadBackup(request: Request, service: ReturnType<typeof service
     if (value.size > MAX_FILE_BYTES) throw new HttpError("Salah satu file melebihi batas 24 MB. Kurangi data lalu ulangi backup.", 413);
     files.push({ ...spec, file: value });
   }
+
+  const logWorkbook = await systemLogWorkbook(service);
+  const logStamp = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  const logFile = new File([logWorkbook], `SIM-LSP-Log-Aktivitas-${logStamp}.xlsx`, {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+  if (logFile.size > MAX_FILE_BYTES) throw new HttpError("File log aktivitas melebihi batas 24 MB.", 413);
+  files.push({ field: "logs", name: "SIM-LSP-Log-Aktivitas", mime: logFile.type, ext: ".xlsx", file: logFile });
   if (files.reduce((sum, entry) => sum + entry.file.size, 0) > MAX_TOTAL_BYTES) {
     throw new HttpError("Paket backup melebihi batas 48 MB. Kurangi data lalu ulangi.", 413);
   }
@@ -541,6 +549,43 @@ async function uploadBackup(request: Request, service: ReturnType<typeof service
   }
 }
 
+async function readLogPages(service: ReturnType<typeof serviceClient>, table: string, columns: string) {
+  const rows: Array<Record<string, any>> = [];
+  const pageSize = 1000;
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await service.from(table).select(columns)
+      .order("created_at", { ascending: false }).order("id", { ascending: false })
+      .range(offset, offset + pageSize - 1);
+    if (error) throw new HttpError("Riwayat aktivitas gagal disiapkan untuk backup Google Drive.", 500);
+    const page = (data || []) as Array<Record<string, any>>;
+    rows.push(...page);
+    if (page.length < pageSize) break;
+    if (rows.length >= 100000) throw new HttpError("Riwayat aktivitas melebihi batas 100.000 baris untuk satu backup.", 413);
+  }
+  return rows;
+}
+
+async function systemLogWorkbook(service: ReturnType<typeof serviceClient>) {
+  const [audit, access] = await Promise.all([
+    readLogPages(service, "simlsp_audit_events", "created_at,actor_name,actor_username,actor_role,action,entity_type,entity_id,entity_label,reason,before_data,after_data"),
+    readLogPages(service, "simlsp_login_events", "created_at,display_name,username,role,client_label"),
+  ]);
+  const actionRows: unknown[][] = [["Waktu", "Nama akun", "Username", "Peran", "Tindakan", "Jenis data", "ID data", "Nama objek", "Alasan", "Sebelum", "Sesudah"]];
+  audit.forEach((row) => actionRows.push([
+    row.created_at || "", row.actor_name || "", row.actor_username || "", row.actor_role || "",
+    row.action || "", row.entity_type || "", row.entity_id || "", row.entity_label || "", row.reason || "",
+    JSON.stringify(row.before_data || {}), JSON.stringify(row.after_data || {}),
+  ]));
+  const loginRows: unknown[][] = [["Waktu", "Nama akun", "Username", "Peran", "Perangkat/browser"]];
+  access.forEach((row) => loginRows.push([
+    row.created_at || "", row.display_name || "", row.username || "", row.role || "", row.client_label || "",
+  ]));
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(actionRows), "Tindakan Admin");
+  XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(loginRows), "Akses Login");
+  return new Uint8Array(XLSX.write(workbook, { type: "array", bookType: "xlsx" }));
+}
+
 function safeKeyMatches(left: string, right: string) {
   const a = new TextEncoder().encode(left), b = new TextEncoder().encode(right);
   let diff = a.length ^ b.length;
@@ -584,10 +629,10 @@ function nightlyWorkbooks(data: Record<string, any>) {
 async function nightlyBackup(service: ReturnType<typeof serviceClient>) {
   const { data: state, error: stateError } = await service.from("simlsp_shared_data").select("data").eq("id", 1).maybeSingle();
   if (stateError || !state?.data) throw new HttpError("Data bersama SIM-LSP tidak dapat dibaca untuk backup otomatis.", 500);
-  const { data: admins, error: adminError } = await service.from("simlsp_profiles").select("id").eq("role", "sarpras_admin");
-  if (adminError || !admins?.length) throw new HttpError("Akun Sarpras/Admin tidak ditemukan.", 409);
-  const { data: connections, error: connectionError } = await service.from("simlsp_drive_connections").select("user_id,updated_at,refresh_token_ciphertext").in("user_id", admins.map((row: any) => row.id)).order("updated_at", { ascending: false });
-  if (connectionError || !connections?.length) throw new HttpError("Belum ada Google Drive Sarpras/Admin yang terhubung untuk backup otomatis.", 409);
+  const { data: owners, error: ownerError } = await service.from("simlsp_profiles").select("id").eq("role", "sarpras_admin").eq("is_system_owner", true);
+  if (ownerError || !owners?.length) throw new HttpError("Akun Pemilik Sistem tidak ditemukan.", 409);
+  const { data: connections, error: connectionError } = await service.from("simlsp_drive_connections").select("user_id,updated_at,refresh_token_ciphertext").in("user_id", owners.map((row: any) => row.id)).order("updated_at", { ascending: false });
+  if (connectionError || !connections?.length) throw new HttpError("Hubungkan Google Drive milik Pemilik Sistem untuk backup otomatis.", 409);
   const userId = String(connections[0].user_id);
   const appData = state.data as Record<string, any>;
   const payload = { app: "SIM-LSP", exportedAt: new Date().toISOString(), ...appData };
@@ -647,9 +692,10 @@ Deno.serve(async (request) => {
         throw error;
       }
     }
-    const { service, userId } = await requireAdmin(request);
+    const { service, userId, isSystemOwner } = await requireAdmin(request);
     if (request.headers.get("content-type")?.toLowerCase().includes("multipart/form-data")) {
       if (url.searchParams.get("action") === "monthly-summary") return json(await uploadMonthlySummary(request, service, userId));
+      if (!isSystemOwner) throw new HttpError("Backup penuh Google Drive hanya dapat dilakukan Pemilik Sistem.", 403);
       const result = await uploadBackup(request, service, userId, "manual");
       return json(result);
     }
@@ -657,7 +703,10 @@ Deno.serve(async (request) => {
     try { body = await request.json(); } catch (_) { throw new HttpError("Permintaan tidak valid.", 400); }
     const action = String(body.action || "");
     if (action === "status") return json(await status(service, userId));
-    if (action === "connect") return json({ authorizationUrl: await beginOAuth(service, userId) });
+    if (action === "connect") {
+      if (!isSystemOwner) throw new HttpError("Koneksi Google Drive hanya dapat dikelola Pemilik Sistem.", 403);
+      return json({ authorizationUrl: await beginOAuth(service, userId) });
+    }
     throw new HttpError("Aksi Google Drive tidak dikenal.", 400);
   } catch (error) {
     const statusCode = error instanceof HttpError ? error.status : 500;

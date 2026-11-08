@@ -1,6 +1,6 @@
 "use strict";
 
-const SHELL_CACHE = "simlsp-shell-v27";
+const SHELL_CACHE = "simlsp-shell-v28";
 const APP_SCOPE = self.registration.scope;
 const APP_URL = new URL("./", APP_SCOPE).href;
 const INDEX_URL = new URL("./index.html", APP_SCOPE).href;

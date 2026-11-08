@@ -3,6 +3,7 @@ import { withSupabase } from "npm:@supabase/server@1"
 const LOGIN_DOMAIN = "lcfqhrziveksvxuldsfa.supabase.co"
 const CREDENTIALS_TABLE = "simlsp_admin_passwords"
 const CREDENTIAL_KEY_ENV = "SIMLSP_CREDENTIAL_VAULT_KEY"
+const MEMBER_REGISTRY_TABLE = "simlsp_member_registry"
 
 function reply(message: string, status = 400) {
   return Response.json({ error: message }, { status })
@@ -54,6 +55,34 @@ function storageError(error: { message?: string } | null) {
   return "Penyimpanan sandi terenkripsi gagal. Periksa tabel dan secret Edge Function."
 }
 
+function normalizeMemberKey(value: string) {
+  return value.trim().toLocaleLowerCase("id-ID")
+}
+
+async function hashActivationCode(code: string) {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(code.toUpperCase()))
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("")
+}
+
+function createActivationCode() {
+  const bytes = crypto.getRandomValues(new Uint8Array(24))
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("").toUpperCase()
+}
+
+async function writeAudit(admin: any, actorId: string, action: string, entityType: string, entityId = "", entityLabel = "", reason = "", before: Record<string, unknown> = {}, after: Record<string, unknown> = {}) {
+  const result = await admin.rpc("simlsp_write_system_audit", {
+    p_actor_id: actorId,
+    p_action: action,
+    p_entity_type: entityType,
+    p_entity_id: entityId,
+    p_entity_label: entityLabel,
+    p_reason: reason,
+    p_before: before,
+    p_after: after,
+  })
+  if (result.error) console.error("SIM-LSP audit log could not be written:", result.error.message)
+}
+
 async function encryptedCredentialRow(admin: any, accountId: string, password: string, actorId: string) {
   const key = await getCredentialKey()
   const encrypted = await encryptPassword(key, password)
@@ -75,13 +104,15 @@ export default {
 
     const actorResult = await context.supabaseAdmin
       .from("simlsp_profiles")
-      .select("role")
+      .select("role, is_system_owner, username, display_name")
       .eq("id", actorId)
       .maybeSingle()
 
     if (actorResult.error || actorResult.data?.role !== "sarpras_admin") {
       return reply("Hanya Sarpras / Admin yang dapat mengelola akun.", 403)
     }
+    const isSystemOwner = actorResult.data.is_system_owner === true
+    const ownerOnly = () => isSystemOwner ? null : reply("Aksi ini hanya dapat dilakukan Pemilik Sistem.", 403)
 
     let body: Record<string, unknown>
     try {
@@ -90,10 +121,89 @@ export default {
       return reply("Isi permintaan tidak valid.")
     }
 
+    if (body.action === "issue-member-codes") {
+      const denied = ownerOnly()
+      if (denied) return denied
+      const input = Array.isArray(body.members) ? body.members : []
+      if (!input.length || input.length > 300) return reply("Impor daftar warga harus berisi 1–300 baris per proses.")
+
+      const profiles = await context.supabaseAdmin.from("simlsp_profiles").select("display_name")
+      if (profiles.error) return reply("Daftar akun lama gagal diperiksa.", 500)
+      const existingNames = new Set((profiles.data ?? []).map((profile) => String(profile.display_name ?? "").trim().replace(/\s+/g, " ").toLocaleLowerCase("id-ID")))
+      const expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString()
+      const results: Array<Record<string, unknown>> = []
+      const seenKeys = new Set<string>()
+
+      for (let index = 0; index < input.length; index++) {
+        const item = input[index] && typeof input[index] === "object" ? input[index] as Record<string, unknown> : {}
+        const rowNumber = Number.isInteger(Number(item.rowNumber)) ? Number(item.rowNumber) : index + 2
+        const displayName = String(item.displayName ?? "").trim().replace(/\s+/g, " ")
+        const unit = String(item.unit ?? "").trim().replace(/\s+/g, " ")
+        const suppliedKey = String(item.memberKey ?? "").trim()
+        const memberKey = normalizeMemberKey(suppliedKey || `${unit}|${displayName}`)
+        const fail = (message: string) => results.push({ rowNumber, displayName, unit, success: false, message })
+
+        if (displayName.length < 2 || displayName.length > 80) { fail("Nama harus 2–80 karakter."); continue }
+        if (!unit || unit.length > 80) { fail("Unit harus diisi dan maksimal 80 karakter."); continue }
+        if (memberKey.length < 3 || memberKey.length > 180) { fail("Kode anggota terlalu panjang atau tidak valid."); continue }
+        if (seenKeys.has(memberKey)) { fail("Orang ini muncul lebih dari sekali di file."); continue }
+        seenKeys.add(memberKey)
+        if (existingNames.has(displayName.toLocaleLowerCase("id-ID")) && !suppliedKey) {
+          fail("Nama ini sudah memiliki akun. Jika ini orang berbeda dengan nama yang sama, isi Kode Anggota unik; jika bukan, jangan terbitkan kode baru.")
+          continue
+        }
+
+        const existing = await context.supabaseAdmin.from(MEMBER_REGISTRY_TABLE)
+          .select("id, claimed_by")
+          .eq("member_key", memberKey)
+          .maybeSingle()
+        if (existing.error) return reply("Daftar warga belum siap. Jalankan SQL SIM-LSP-Warga-Registration.sql terlebih dahulu.", 500)
+        if (existing.data?.claimed_by) { fail("Akun untuk warga ini sudah diaktifkan; kode baru tidak diterbitkan."); continue }
+
+        const code = createActivationCode()
+        const activationHash = await hashActivationCode(code)
+        const payload = {
+          member_key: memberKey,
+          display_name: displayName,
+          unit,
+          activation_hash: activationHash,
+          activation_expires_at: expiresAt,
+          claim_token: null,
+          claim_started_at: null,
+          is_active: true,
+          created_by: actorId,
+          updated_at: new Date().toISOString(),
+        }
+        const saved = existing.data
+          ? await context.supabaseAdmin.from(MEMBER_REGISTRY_TABLE).update(payload).eq("id", existing.data.id).select("id").single()
+          : await context.supabaseAdmin.from(MEMBER_REGISTRY_TABLE).insert(payload).select("id").single()
+        if (saved.error || !saved.data) {
+          fail(saved.error?.code === "23505" ? "Kode anggota sudah terdaftar. Tambahkan kode anggota unik untuk membedakan nama yang sama." : "Data warga gagal disimpan.")
+          continue
+        }
+        results.push({ rowNumber, displayName, unit, success: true, code, expiresAt, message: "Kode aktivasi berhasil dibuat." })
+      }
+
+      const issuedRows = results.filter((row) => row.success)
+      const issued = issuedRows.length
+      if (issued) await writeAudit(context.supabaseAdmin, actorId, "Kode aktivasi diterbitkan", "Kode aktivasi", "", `${issued} kode warga`, "Penerbitan kode aktivasi satu kali pakai.", {}, { jumlah: issued, warga: issuedRows.map((row) => ({ nama: row.displayName, unit: row.unit })) })
+      return Response.json({ results, issued, failed: results.length - issued })
+    }
+
+    if (body.action === "list-member-registry") {
+      const result = await context.supabaseAdmin.from(MEMBER_REGISTRY_TABLE)
+        .select("id, display_name, unit, activation_expires_at, claimed_by, claimed_at, is_active, created_at")
+        .order("display_name", { ascending: true })
+      if (result.error) return reply("Daftar warga belum siap. Jalankan SQL SIM-LSP-Warga-Registration.sql terlebih dahulu.", 500)
+      return Response.json({ members: result.data ?? [] })
+    }
+
     if (body.action === "list") {
+      const denied = ownerOnly()
+      if (denied) return denied
       const result = await context.supabaseAdmin
         .from("simlsp_profiles")
-        .select("id, username, display_name, role, created_at")
+        .select("id, username, display_name, role, is_system_owner, created_at")
         .order("username", { ascending: true })
 
       if (result.error) return reply("Daftar akun gagal dimuat.", 500)
@@ -129,6 +239,8 @@ export default {
     }
 
     if (body.action === "save-credentials") {
+      const denied = ownerOnly()
+      if (denied) return denied
       const input = Array.isArray(body.credentials) ? body.credentials : []
       if (!input.length || input.length > 500) return reply("CSV tidak berisi sandi akun yang cocok atau jumlahnya melebihi 500.")
       let key: CryptoKey
@@ -161,10 +273,13 @@ export default {
       }
       const saved = await context.supabaseAdmin.from(CREDENTIALS_TABLE).upsert(rows, { onConflict: "account_id" })
       if (saved.error) return reply(storageError(saved.error), 500)
+      await writeAudit(context.supabaseAdmin, actorId, "Sandi akun diperbarui", "Kredensial", "", `${rows.length} akun`, "Sandi disetel melalui impor CSV terenkripsi.", {}, { jumlahAkun: rows.length })
       return Response.json({ saved: rows.length })
     }
 
     if (body.action === "bulk-create") {
+      const denied = ownerOnly()
+      if (denied) return denied
       const input = Array.isArray(body.accounts) ? body.accounts : []
       if (!input.length || input.length > 50) return reply("Impor harus berisi 1–50 akun per proses.")
 
@@ -253,6 +368,8 @@ export default {
           }
           existingByUsername.set(normalizedUsername, profile.data)
           updatedCount++
+          await writeAudit(context.supabaseAdmin, actorId, "Akun diperbarui melalui impor", "Akun", userId, username, "Impor daftar akun.",
+            { nama: existing.display_name, peran: existing.role }, { nama: displayName, peran: role, sandiDiubah: true })
           results.push({ rowNumber, username, success: true, message: "Akun yang sudah ada diperbarui; sandi login dan brankas ikut diperbarui." })
           continue
         }
@@ -293,6 +410,7 @@ export default {
         }
         existingByUsername.set(normalizedUsername, profile.data)
         createdCount++
+        await writeAudit(context.supabaseAdmin, actorId, "Akun dibuat melalui impor", "Akun", String(created.data.user.id), username, "Impor daftar akun.", {}, { nama: displayName, peran: role })
         results.push({ rowNumber, username, success: true, message: "Akun baru berhasil dibuat." })
       }
 
@@ -300,6 +418,8 @@ export default {
     }
 
     if (body.action === "create") {
+      const denied = ownerOnly()
+      if (denied) return denied
       const username = String(body.username ?? "").trim()
       const displayName = String(body.displayName ?? "").trim()
       const password = String(body.password ?? "")
@@ -359,16 +479,20 @@ export default {
         await context.supabaseAdmin.auth.admin.deleteUser(created.data.user.id)
         return reply(storageError(saved.error) + " Akun baru dibatalkan.", 500)
       }
+      await writeAudit(context.supabaseAdmin, actorId, "Akun dibuat", "Akun", String(created.data.user.id), username, "Akun warga dibuat melalui Kelola Akun.", {}, { nama: displayName, peran: "warga" })
       return Response.json({ account: profile.data, passwordSaved: true })
     }
 
     if (body.action === "delete") {
+      const denied = ownerOnly()
+      if (denied) return denied
       const userId = String(body.userId ?? "")
       if (!isUuid(userId)) return reply("Identitas akun tidak valid.")
 
-      const target = await context.supabaseAdmin.from("simlsp_profiles").select("id").eq("id", userId).maybeSingle()
+      const target = await context.supabaseAdmin.from("simlsp_profiles").select("id, username, display_name, role, is_system_owner").eq("id", userId).maybeSingle()
       if (target.error) return reply("Data akun gagal dibaca.", 500)
       if (!target.data) return reply("Akun tidak ditemukan.", 404)
+      if (target.data.is_system_owner) return reply("Akun Pemilik Sistem tidak dapat dihapus dari Kelola Akun.", 403)
 
       const deletion = await context.supabaseAdmin.auth.admin.deleteUser(userId)
       if (deletion.error) return reply(`Penghapusan akun gagal: ${deletion.error.message}`, 400)
@@ -377,10 +501,15 @@ export default {
       const remaining = await context.supabaseAdmin.from("simlsp_profiles").select("id").eq("id", userId).maybeSingle()
       if (remaining.error) return reply("Status penghapusan akun tidak dapat diverifikasi.", 500)
       if (remaining.data) return reply("Akun masih tercatat di profil dan belum benar-benar terhapus.", 500)
+      await writeAudit(context.supabaseAdmin, actorId, "Akun dihapus", "Akun", userId, target.data.username, "Penghapusan akun melalui Kelola Akun.", { nama: target.data.display_name, peran: target.data.role }, {})
       return Response.json({ deleted: true, userId })
     }
 
     if (body.action !== "update") return reply("Aksi tidak dikenal.")
+    {
+      const denied = ownerOnly()
+      if (denied) return denied
+    }
 
     const userId = String(body.userId ?? "")
     const username = String(body.username ?? "").trim()
@@ -409,10 +538,11 @@ export default {
       encrypted = await encryptPassword(key, password)
     }
 
-    const targetResult = await context.supabaseAdmin.from("simlsp_profiles").select("id, username, display_name, role").eq("id", userId).maybeSingle()
+    const targetResult = await context.supabaseAdmin.from("simlsp_profiles").select("id, username, display_name, role, is_system_owner").eq("id", userId).maybeSingle()
     if (targetResult.error) return reply("Data akun gagal dibaca.", 500)
     if (!targetResult.data) return reply("Akun tidak ditemukan.", 404)
     const target = targetResult.data
+    if (target.is_system_owner && role !== "sarpras_admin") return reply("Peran Pemilik Sistem tidak dapat diturunkan.", 403)
     const duplicateResult = await context.supabaseAdmin.from("simlsp_profiles").select("id, username").neq("id", userId)
     if (duplicateResult.error) return reply("Pemeriksaan username gagal.", 500)
     if ((duplicateResult.data ?? []).some((account) => account.username.toLowerCase() === username.toLowerCase())) return reply("Username tersebut sudah digunakan.", 409)
@@ -465,6 +595,9 @@ export default {
       }
     }
 
+    await writeAudit(context.supabaseAdmin, actorId, "Akun diperbarui", "Akun", userId, username, "Perubahan melalui Kelola Akun.",
+      { nama: target.display_name, username: target.username, peran: target.role },
+      { nama: displayName, username, peran: role, sandiDiubah: Boolean(password) })
     return Response.json({ account: profileUpdate.data, passwordSaved: password ? true : undefined })
   }),
 }
