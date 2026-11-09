@@ -80,7 +80,10 @@ async function writeAudit(admin: any, actorId: string, action: string, entityTyp
     p_before: before,
     p_after: after,
   })
-  if (result.error) console.error("SIM-LSP audit log could not be written:", result.error.message)
+  if (result.error) {
+    console.error("SIM-LSP audit log could not be written:", result.error.message)
+    throw new Error("Perubahan akun sudah diterapkan, tetapi riwayat aktivitas gagal dicatat. Muat ulang daftar akun sebelum mencoba lagi dan hubungi Pemilik Sistem.")
+  }
 }
 
 async function encryptedCredentialRow(admin: any, accountId: string, password: string, actorId: string) {
