@@ -200,15 +200,55 @@
   }
 
   async function phase1SendPushEvent(eventKey) {
-    if (!eventKey || !appSession || !supabaseClient) return;
-    try {
-      const result = await supabaseClient.functions.invoke("simlsp-notify-app-event", { body: { eventKey: eventKey } });
-      if (result.error || result.data && result.data.error) {
-        console.warn("Push pemberitahuan SIM-LSP belum terkirim:", result.error && result.error.message || result.data && result.data.error || "fungsi belum tersedia");
+    if (!eventKey || !appSession || !supabaseClient) return { ok: false, error: "Sesi atau koneksi notifikasi tidak tersedia." };
+    let lastFailure = null;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const result = await supabaseClient.functions.invoke("simlsp-notify-app-event", { body: { eventKey: eventKey } });
+        if (!result.error && !(result.data && result.data.error)) {
+          if (attempt === 0 && result.data && result.data.reason === "partial-failure") {
+            await new Promise(function (resolve) { window.setTimeout(resolve, 800); });
+            continue;
+          }
+          return { ok: true, data: result.data || {} };
+        }
+        const message = result.error && result.error.message || result.data && result.data.error || "fungsi belum tersedia";
+        const status = Number(result.error && result.error.status || 0);
+        lastFailure = { ok: false, error: message, data: result.data || null };
+        if (attempt === 0 && (!status || status === 408 || status === 429 || status >= 500)) {
+          await new Promise(function (resolve) { window.setTimeout(resolve, 800); });
+          continue;
+        }
+        break;
+      } catch (error) {
+        const message = error && error.message || "koneksi gagal";
+        console.warn("Percobaan push SIM-LSP gagal:", message);
+        lastFailure = { ok: false, error: message };
+        if (attempt === 0) {
+          await new Promise(function (resolve) { window.setTimeout(resolve, 800); });
+          continue;
+        }
       }
-    } catch (error) {
-      console.warn("Push pemberitahuan SIM-LSP belum terkirim:", error && error.message || "koneksi gagal");
     }
+    console.warn("Push pemberitahuan SIM-LSP belum terkirim:", lastFailure && lastFailure.error || "koneksi gagal");
+    return lastFailure || { ok: false, error: "koneksi gagal" };
+  }
+
+  function phase1PushWarning(delivery, subject) {
+    if (delivery && delivery.data && delivery.data.duplicate) return "";
+    if (!delivery || delivery.ok === false) {
+      return subject + " tersimpan, tetapi push gagal dikirim. Pemberitahuan tetap tersedia di lonceng aplikasi.";
+    }
+    const data = delivery.data || {};
+    const reporterCount = Number(data.reporterCount || 0);
+    const reporterSent = Number(data.reporterSent || 0);
+    if (reporterCount > reporterSent) {
+      return subject + " tersimpan, tetapi push baru terkirim ke " + reporterSent + " dari " + reporterCount + " akun pelapor. Periksa izin notifikasi pada perangkat yang belum menerima; pemberitahuan tetap tersedia di lonceng aplikasi.";
+    }
+    if (data.reason === "no-recipients") {
+      return subject + " tersimpan, tetapi sistem belum menemukan penerima push. Pemberitahuan tetap tersedia di lonceng aplikasi.";
+    }
+    return "";
   }
 
   function phase1StartNotificationPolling() {
@@ -434,8 +474,8 @@
     if (length) length.textContent = "0 / 800";
     await phase1LoadComments(reportId);
     await phase1RefreshNotifications();
-    if (result.data && result.data.id) void phase1SendPushEvent("comment:" + result.data.id);
-    toast("Komentar terkirim.");
+    const delivery = result.data && result.data.id ? await phase1SendPushEvent("comment:" + result.data.id) : null;
+    toast(phase1PushWarning(delivery, "Komentar") || "Komentar terkirim.");
     if (button) {
       button.disabled = false;
       button.textContent = "Kirim komentar";
@@ -1843,7 +1883,9 @@
 
   notifyReportStatus = async function (report) {
     if (!isManager() || !report || !report.statusEventId || !sharedDataReady || !supabaseClient) return;
-    await phase1SendPushEvent("status:" + String(report.id) + ":" + String(report.statusEventId));
+    const delivery = await phase1SendPushEvent("status:" + String(report.id) + ":" + String(report.statusEventId));
+    const warning = phase1PushWarning(delivery, "Perubahan status");
+    if (warning) toast(warning);
   };
 
   const phase1BaseActivateSession = activateSession;
