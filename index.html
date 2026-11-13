@@ -233,6 +233,19 @@ body.mobile-drawer-open,html:has(body.mobile-drawer-open){overscroll-behavior:no
 .asset-view-control{display:flex;align-items:center;gap:8px;flex:0 1 360px;min-width:min(100%,260px);color:var(--ink);font-size:12px;font-weight:700}.asset-view-control select{width:100%;min-width:0;min-height:44px;border:1px solid var(--line);border-radius:11px;padding:9px 34px 9px 11px;background:#fff;color:var(--ink)}.asset-review-callout{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:0 0 14px;padding:14px 15px;border:1px solid #d7e6e2;border-left:4px solid var(--teal);border-radius:12px;background:#f5faf9}.asset-review-callout>div{min-width:0}.asset-review-callout strong{font-size:13px}.asset-review-callout p{margin:3px 0 0;color:var(--muted);font-size:12px}.asset-review-callout .btn{min-height:44px;flex:none}.asset-origin-badge{display:inline-flex;vertical-align:middle;margin:3px 0 0 5px;font-size:10px;white-space:nowrap}.asset-archived-badge{background:#eef1f2;color:#526168}.asset-profile-card-row{display:flex;align-items:stretch;gap:8px;margin:8px 0}.asset-profile-card-row .asset-profile-card{flex:1;min-width:0;margin:0}.asset-area-manage-button{min-width:72px;min-height:44px;align-self:center;white-space:nowrap}.asset-empty-area-tools{margin:12px 0;border:1px solid var(--line);border-radius:12px;background:#fff}.asset-empty-area-tools>summary{padding:12px 14px;color:var(--ink);font-size:12px;font-weight:750;cursor:pointer}.asset-empty-area-list{display:grid;gap:8px;padding:0 12px 12px}.asset-empty-area-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 10px;border-radius:9px;background:#f6f9f8;font-size:12px}.asset-empty-area-row .btn{min-height:40px}
 @media(max-width:1200px){.asset-toolbar{display:grid;grid-template-columns:minmax(0,1fr);align-items:stretch}.asset-toolbar>#assetSearch{width:100%;max-width:none;min-height:44px}.asset-view-control{display:grid;grid-template-columns:1fr;min-width:0;width:100%}.asset-review-callout{align-items:stretch;flex-direction:column;gap:10px;padding:12px}.asset-review-callout .btn{width:100%;white-space:normal}.asset-area-header-actions{justify-content:flex-start}.asset-origin-badge{white-space:normal}}
 </style>
+<style id="reportSuggestionStyles">
+.report-suggest-field{position:relative;z-index:1;overflow:visible}
+.report-suggest-field:focus-within{z-index:40}
+.report-suggestion-list{position:absolute;z-index:60;left:0;right:0;max-height:min(280px,42vh);overflow-y:auto;overscroll-behavior:contain;border:1px solid #c9d9d6;border-radius:12px;background:#fff;box-shadow:0 12px 28px rgba(16,44,58,.18);padding:5px}
+.report-suggestion-list[hidden]{display:none}
+.report-suggestion-heading,.report-suggestion-foot,.report-suggestion-empty{padding:8px 10px;color:var(--muted);font-size:11px;line-height:1.4}
+.report-suggestion-heading{font-weight:800;color:var(--teal-dark);border-bottom:1px solid var(--line)}
+.report-suggestion-option{display:block;width:100%;min-height:42px;border:0;border-radius:8px;background:transparent;padding:9px 10px;color:var(--ink);text-align:left;font-size:13px}
+.report-suggestion-option:hover,.report-suggestion-option:focus-visible,.report-suggestion-option[aria-selected="true"]{outline:0;background:var(--mint);color:var(--teal-dark)}
+.report-suggestion-empty{padding:11px 10px}
+.report-suggestion-foot{border-top:1px solid var(--line);font-size:10px}
+@media(max-width:680px){.report-suggestion-list{max-height:min(240px,34vh)}.report-suggestion-option{min-height:46px;font-size:14px}}
+</style>
 </head>
 <body>
 <div id="bootSplash" class="boot-splash" role="status" aria-label="Memuat SIM-LSP"><span class="boot-splash-spinner" aria-hidden="true"></span><span class="boot-splash-label">MEMUAT SIM-LSP</span></div>
@@ -281,8 +294,8 @@ const SUPABASE_LEGACY_LOGIN_DOMAIN = "login.simlsp.invalid";
 let supabaseClient = null;
 let authIdentityReloadPending = false;
 const ONBOARDING_VERSION = 1;
-const APP_VERSION = "1.6.17";
-const CHANGELOG_ENTRIES = ["Pemberitahuan push status dan komentar laporan diperbaiki untuk pelapor, termasuk tiket yang digabung.","Peningkatan kestabilan sesi akun dan pemuatan data bersama.","Penyempurnaan perlindungan data akun dan laporan.","Perbaikan kenyamanan penggunaan aplikasi di ponsel dan komputer."];
+const APP_VERSION = "1.6.18";
+const CHANGELOG_ENTRIES = ["Saran lokasi dan objek laporan kini dapat dicari dari bagian mana pun pada nama.","Pemberitahuan push status dan komentar laporan diperbaiki untuk pelapor, termasuk tiket yang digabung.","Peningkatan kestabilan sesi akun dan pemuatan data bersama.","Penyempurnaan perlindungan data akun dan laporan.","Perbaikan kenyamanan penggunaan aplikasi di ponsel dan komputer."];
 let appSession = null;
 let userProfile = null;
 let authReady = false;
@@ -1018,6 +1031,7 @@ const bootSplashStartedAt=Date.now();let bootSplashHideScheduled=false;function 
 <script src="./phase1.js"></script>
 <script src="./report-merge.js"></script>
 <script src="./asset-report-link.js"></script>
+<script src="./report-suggestions.js"></script>
 <script>initializeAuth().finally(dismissBootSplash);</script>
 <script>
 const originalActivateOwnerSession=activateSession;
