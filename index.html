@@ -245,6 +245,25 @@ body.mobile-drawer-open,html:has(body.mobile-drawer-open){overscroll-behavior:no
 .report-suggestion-empty{padding:11px 10px}
 .report-suggestion-foot{border-top:1px solid var(--line);font-size:10px}
 @media(max-width:680px){.report-suggestion-list{max-height:min(240px,34vh)}.report-suggestion-option{min-height:46px;font-size:14px}}
+.asset-usage-picker-field{position:relative;z-index:1;overflow:visible}
+.asset-usage-picker-field:focus-within{z-index:40}
+.asset-usage-picker{position:relative}
+.asset-usage-picker input{width:100%;min-height:44px;border:1px solid var(--line);border-radius:11px;padding:10px 12px;background:#fff;color:var(--ink)}
+.asset-usage-picker input:focus{outline:2px solid #bde6de;border-color:var(--teal)}
+.asset-usage-native-select{display:none!important}
+.asset-usage-picker-help{display:block;margin-top:6px;color:var(--muted);font-size:11px}
+.asset-usage-options{position:absolute;z-index:90;top:calc(100% + 5px);left:0;right:0;max-height:280px;overflow-y:auto;overscroll-behavior:contain;border:1px solid #c9d9d6;border-radius:12px;background:#fff;box-shadow:0 12px 28px rgba(16,44,58,.18);padding:5px}
+.asset-usage-options.opens-up{top:auto;bottom:calc(100% + 5px)}
+.asset-usage-options[hidden]{display:none}
+.asset-usage-option{display:flex;width:100%;min-height:48px;align-items:center;justify-content:space-between;gap:10px;border:0;border-radius:8px;background:transparent;padding:8px 10px;color:var(--ink);text-align:left}
+.asset-usage-option:hover,.asset-usage-option:focus-visible,.asset-usage-option.is-active{outline:0;background:var(--mint);color:var(--teal-dark)}
+.asset-usage-option.is-current{box-shadow:inset 3px 0 var(--teal)}
+.asset-usage-option-copy{display:grid;min-width:0;gap:2px}
+.asset-usage-option-copy strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
+.asset-usage-option-copy small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:10px}
+.asset-usage-option-count,.asset-usage-picker-message{flex:none;color:var(--muted);font-size:10px}
+.asset-usage-picker-message{padding:10px;color:var(--muted)}
+@media(max-width:680px){.asset-usage-options{max-height:240px}.asset-usage-option{min-height:52px;padding:9px}.asset-usage-option-copy strong{font-size:13px}}
 </style>
 </head>
 <body>
@@ -294,8 +313,8 @@ const SUPABASE_LEGACY_LOGIN_DOMAIN = "login.simlsp.invalid";
 let supabaseClient = null;
 let authIdentityReloadPending = false;
 const ONBOARDING_VERSION = 1;
-const APP_VERSION = "1.6.18";
-const CHANGELOG_ENTRIES = ["Saran lokasi dan objek laporan kini dapat dicari dari bagian mana pun pada nama.","Pemberitahuan push status dan komentar laporan diperbaiki untuk pelapor, termasuk tiket yang digabung.","Peningkatan kestabilan sesi akun dan pemuatan data bersama.","Penyempurnaan perlindungan data akun dan laporan.","Perbaikan kenyamanan penggunaan aplikasi di ponsel dan komputer."];
+const APP_VERSION = "1.6.19";
+const CHANGELOG_ENTRIES = ["Pemilihan aset untuk hasil pekerjaan kini dapat dicari berdasarkan nama dan area.","Saran lokasi dan objek laporan kini dapat dicari dari bagian mana pun pada nama.","Pemberitahuan push status dan komentar laporan diperbaiki untuk pelapor, termasuk tiket yang digabung.","Peningkatan kestabilan sesi akun dan pemuatan data bersama.","Penyempurnaan perlindungan data akun dan laporan.","Perbaikan kenyamanan penggunaan aplikasi di ponsel dan komputer."];
 let appSession = null;
 let userProfile = null;
 let authReady = false;
@@ -735,7 +754,7 @@ function render(){let app=document.querySelector(".app"),login=document.getEleme
 function reportAssetUsageFields(r){
   let assets=db.assets.filter(function(a){return (Number(a.quantity||0)>0&&assetStatus(a.status)==="Aktif")||String(r.assetUsageId||"")===String(a.id);}).sort(function(a,b){return String(a.area||"").localeCompare(String(b.area||""),"id")||String(a.name||"").localeCompare(String(b.name||""),"id");});
   if(!assets.length)return '<div class="divider"></div><div class="section-title">Aset dari persediaan (opsional)</div><div class="small-note">Belum ada stok tersedia. Pengadaan akan muncul setelah laporan selesai.</div>';
-  return '<div class="divider"></div><div class="section-title">Aset dari persediaan (opsional)</div><div class="small-note" style="margin-bottom:9px">Kosongkan jika pekerjaan ini tidak memakai stok aset. Pengurangan dicatat saat hasil pekerjaan diajukan untuk verifikasi.</div><div class="form-grid"><div class="field"><label for="assetUseId">Aset yang digunakan</label><select id="assetUseId"><option value="">Tidak menggunakan aset</option>'+assets.map(function(a){return '<option value="'+esc(a.id)+'" '+(String(r.assetUsageId||"")===String(a.id)?"selected":"")+'>'+esc(a.name)+" · "+esc(a.area||"Area belum ditentukan")+" · "+esc(assetDateLabel(a.acquisitionDate))+" · "+esc(assetStatus(a.status))+" — tersisa "+esc(Number(a.quantity||0).toLocaleString("id-ID",{maximumFractionDigits:3}))+" "+esc(a.unit||"")+'</option>';}).join("")+'</select></div><div class="field"><label for="assetUseQuantity">Jumlah digunakan</label><input id="assetUseQuantity" type="number" min="0.001" step="any" value="'+(r.assetUsageQuantity?esc(r.assetUsageQuantity):"")+'" placeholder="Opsional"></div><div class="field full"><label for="assetUseNote">Keterangan pemakaian aset</label><input id="assetUseNote" maxlength="160" value="'+esc(r.assetUsageNote||"")+'" placeholder="Contoh: paku untuk memperbaiki meja"></div></div>';
+  return '<div class="divider"></div><div class="section-title">Aset dari persediaan (opsional)</div><div class="small-note" style="margin-bottom:9px">Kosongkan jika pekerjaan ini tidak memakai stok aset. Pengurangan dicatat saat hasil pekerjaan diajukan untuk verifikasi.</div><div class="form-grid"><div class="field asset-usage-picker-field"><label for="assetUseSearch">Aset yang digunakan</label><select id="assetUseId"><option value="">Tidak menggunakan aset</option>'+assets.map(function(a){return '<option value="'+esc(a.id)+'" data-display="'+esc(a.name)+" · "+esc(a.area||"Area belum ditentukan")+'" '+(String(r.assetUsageId||"")===String(a.id)?"selected":"")+'>'+esc(a.name)+" · "+esc(a.area||"Area belum ditentukan")+" · "+esc(assetDateLabel(a.acquisitionDate))+" · "+esc(assetStatus(a.status))+" — tersisa "+esc(Number(a.quantity||0).toLocaleString("id-ID",{maximumFractionDigits:3}))+" "+esc(a.unit||"")+'</option>';}).join("")+'</select></div><div class="field"><label for="assetUseQuantity">Jumlah digunakan</label><input id="assetUseQuantity" type="number" min="0.001" step="any" value="'+(r.assetUsageQuantity?esc(r.assetUsageQuantity):"")+'" placeholder="Opsional"></div><div class="field full"><label for="assetUseNote">Keterangan pemakaian aset</label><input id="assetUseNote" maxlength="160" value="'+esc(r.assetUsageNote||"")+'" placeholder="Contoh: paku untuk memperbaiki meja"></div></div>';
 }
 function detailActionForm(r){
   if(isManager()&&r.status==="BARU")return '<div class="action-box"><div class="section-title">Verifikasi laporan</div><label class="checkline"><input id="approvalNeeded" type="checkbox" '+(r.needsApproval?"checked":"")+'><span>Perlu persetujuan Admin sebelum penugasan</span></label><div class="field" style="margin-top:10px"><label>Prioritas hasil verifikasi</label><select id="priorityInput"><option '+(r.priority==="KRITIS"?"selected":"")+'>KRITIS</option><option '+(r.priority==="TINGGI"?"selected":"")+'>TINGGI</option><option '+(r.priority==="NORMAL"?"selected":"")+'>NORMAL</option><option '+(r.priority==="RENDAH"?"selected":"")+'>RENDAH</option></select></div><div class="action-row"><button class="btn small" data-action="verify" data-id="'+esc(r.id)+'">Verifikasi & lanjutkan</button><button class="btn ghost small" data-action="request-info" data-id="'+esc(r.id)+'">Minta informasi</button><button class="btn danger small" data-action="reject" data-id="'+esc(r.id)+'">Tolak</button></div></div>';
@@ -1032,6 +1051,7 @@ const bootSplashStartedAt=Date.now();let bootSplashHideScheduled=false;function 
 <script src="./report-merge.js"></script>
 <script src="./asset-report-link.js"></script>
 <script src="./report-suggestions.js"></script>
+<script src="./asset-usage-picker.js"></script>
 <script>initializeAuth().finally(dismissBootSplash);</script>
 <script>
 const originalActivateOwnerSession=activateSession;
